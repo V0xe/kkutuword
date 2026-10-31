@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -66,7 +67,7 @@
     .view { display: none; }
     .view.is-active { display: block; }
     #content-canvas.is-active { display: flex; flex-direction: column; height: 100%; padding-top: 16px; padding-bottom: 24px; gap: 12px; }
-    #content-list .wrap { padding-top: 20px; padding-bottom: 56px; }
+    #content-list .wrap, #content-requests .wrap { padding-top: 20px; padding-bottom: 56px; }
 
     .search { width: 100%; height: 52px; padding: 0 18px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
     .search::placeholder, .field::placeholder { color: var(--faint); }
@@ -188,6 +189,18 @@
     .toast { background: var(--ink); color: var(--bg); font-weight: 700; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(12px); transition: opacity .25s, transform .25s; }
     .toast.show { opacity: 1; transform: none; }
 
+    /* ---------- 관리자 / 요청 ---------- */
+    .head-right { flex-wrap: wrap; justify-content: flex-end; }
+    .btn-ghost { background: transparent; color: var(--muted); }
+    .admin-tag { padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #34d399; background: #10231b; border: 1px solid #1f5f46; }
+    .tab-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #fbbf24; color: #0e1016; font-family: var(--mono); font-size: 11px; font-weight: 700; }
+    .req-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+    .req-head h2 { font-size: 16px; font-weight: 700; }
+    .req-head p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .btn-ok { background: #10231b; border-color: #1f5f46; color: #34d399; }
+    .btn-ok:hover { background: #163225; border-color: #2a8060; }
+    .btn-ok:disabled { opacity: .35; cursor: not-allowed; }
+
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: #2a2f3e; border-radius: 6px; }
@@ -212,7 +225,9 @@
       </div>
       <div class="head-right">
         <span class="status" id="dbStatus" data-state="connecting">DB 연결 중…</span>
-        <button class="btn btn-light" onclick="openAddModal()">+ 단어 추가</button>
+        <span class="admin-tag hidden" id="adminTag">관리자</span>
+        <button class="btn btn-ghost" id="adminBtn" onclick="toggleAdminLogin()">관리자 로그인</button>
+        <button class="btn btn-light" id="addBtn" onclick="openAddModal()">+ 단어 추가 요청</button>
       </div>
     </div>
   </header>
@@ -224,6 +239,7 @@
       <button class="tab" id="tab-공수" onclick="setCategory('공수')">공수</button>
       <button class="tab" id="tab-미션" onclick="setCategory('미션')">미션</button>
       <button class="tab" id="tab-예능" onclick="setCategory('예능')">예능</button>
+      <button class="tab hidden" id="tab-requests" onclick="showRequests()">요청 관리<span class="tab-badge hidden" id="reqCount">0</span></button>
       <button class="tab tab-tree" id="tab-tree" onclick="showTree()">공수 마인드맵</button>
     </div>
   </nav>
@@ -250,6 +266,26 @@
           <table>
             <thead><tr><th>암기</th><th>단어</th><th>카테고리</th><th>글자 수</th><th>조건</th><th>작업</th></tr></thead>
             <tbody id="wordTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- 요청 관리 (관리자 전용) -->
+    <main id="content-requests" class="view">
+      <div class="wrap">
+        <div class="req-head">
+          <div>
+            <h2>단어 추가 요청</h2>
+            <p>승인하면 단어장에 바로 반영되고, 거절하면 요청만 삭제돼요.</p>
+          </div>
+          <button class="btn btn-danger" onclick="rejectAll()">보이는 요청 모두 거절</button>
+        </div>
+        <div id="reqEmpty" class="empty hidden">대기 중인 요청이 없어요.</div>
+        <div class="table-wrap" id="reqTableWrap">
+          <table>
+            <thead><tr><th>유형</th><th>요청 단어</th><th>카테고리</th><th>조건</th><th>시각</th><th>작업</th></tr></thead>
+            <tbody id="reqBody"></tbody>
           </table>
         </div>
       </div>
@@ -287,7 +323,7 @@
       <form id="addWordForm" onsubmit="handleAddWord(event)">
         <div class="form-row">
           <label for="newWord">단어</label>
-          <input type="text" id="newWord" class="field" required placeholder="단어를 입력하세요">
+          <input type="text" id="newWord" class="field" required maxlength="100" placeholder="단어를 입력하세요">
           <p class="hint" id="wordHint"></p>
         </div>
         <div class="form-row">
@@ -301,7 +337,7 @@
         </div>
         <div class="form-row hidden" id="missionConditionField">
           <label for="newCondition">미션 조건 (예: 타2, 아4, 가8)</label>
-          <input type="text" id="newCondition" class="field" placeholder="조건 입력">
+          <input type="text" id="newCondition" class="field" maxlength="20" placeholder="조건 입력">
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" onclick="closeAddModal()">취소</button>
@@ -323,7 +359,7 @@
         </div>
         <div class="form-row">
           <label for="extText">이을 단어</label>
-          <input type="text" id="extText" class="field" required autocomplete="off" placeholder="이을 단어를 입력하세요 (여러 개는 / 로 구분)" oninput="updateExtendPreview()">
+          <input type="text" id="extText" class="field" required maxlength="100" autocomplete="off" placeholder="이을 단어를 입력하세요 (여러 개는 / 로 구분)" oninput="updateExtendPreview()">
           <p class="hint" id="extLink"></p>
         </div>
         <div class="form-row">
@@ -332,7 +368,7 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" onclick="closeExtendModal()">취소</button>
-          <button type="submit" class="btn btn-light">이어 추가</button>
+          <button type="submit" class="btn btn-light" id="extSubmit">이어 추가</button>
         </div>
       </form>
     </div>
@@ -516,6 +552,12 @@
     let currentCat = 'all';
     let currentLetter = null;
     let treeLaidOut = false;
+    let db = null;             // Firestore 인스턴스
+    let auth = null;           // Firebase Auth (관리자 전용)
+    let isAdmin = false;       // requests 컬렉션을 읽을 수 있으면 관리자 (실제 권한은 Firestore 규칙이 결정)
+    let unsubReq = null;
+    let requests = [];         // 대기 중인 추가 요청 (관리자만 받아옴)
+    const busyReq = new Set();
 
     // Canvas state
     let canvasNodes = [];
@@ -681,6 +723,13 @@
       setActiveTab('tab-' + cat);
       setView('list');
       renderWordList();
+    }
+
+    function showRequests() {
+      if (!isAdmin) return;
+      setActiveTab('tab-requests');
+      setView('requests');
+      renderRequests();
     }
 
     function showTree() {
@@ -1159,10 +1208,10 @@
           ? '<span class="num">' + parseChain(entry.word).length + '단계</span>'
           : '<span class="len">' + n + '</span><div class="lenbar"><i style="width:' + Math.round(n / maxLen * 100) + '%"></i></div>';
         const copyCell = '<div class="actions">' + (isChain
-          ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가</button>'
+          ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가' + (isAdmin ? '' : ' 요청') + '</button>'
           : '<button class="btn" onclick="copyToClipboard(' + jsAttr(entry.word) + ')">복사</button>') +
-          '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정</button>' +
-          '<button class="btn btn-danger" onclick="deleteWord(' + jsAttr(entry.id) + ')">삭제</button></div>';
+          (isAdmin ? '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정</button>' +
+          '<button class="btn btn-danger" onclick="deleteWord(' + jsAttr(entry.id) + ')">삭제</button>' : '') + '</div>';
 
         const tr = document.createElement('tr');
         if (isMem) tr.className = 'is-memo';
@@ -1193,7 +1242,7 @@
     }
 
     async function deleteWord(id) {
-      if (!requireWritable()) return;
+      if (!requireAdmin()) return;
       const entry = words.find(w => w.id === id);
       if (!entry || !confirm('‘' + entry.word + '’ 을(를) 삭제할까요?')) return;
       try { await col.doc(id).delete(); showToast('삭제했어요.'); }
@@ -1214,9 +1263,9 @@
 
     function openAddModal() {
       editId = null;
-      document.getElementById('modal-title').textContent = '단어 추가';
-      document.getElementById('addSub').textContent = '새 단어를 단어장에 추가하세요.';
-      document.getElementById('addSubmit').textContent = '추가';
+      document.getElementById('modal-title').textContent = isAdmin ? '단어 추가' : '단어 추가 요청';
+      document.getElementById('addSub').textContent = isAdmin ? '새 단어를 단어장에 추가하세요.' : '관리자가 검토한 뒤 승인하면 단어장에 반영돼요.';
+      document.getElementById('addSubmit').textContent = isAdmin ? '추가' : '요청 보내기';
       document.getElementById('addModal').classList.remove('hidden');
       document.getElementById('newWord').value = '';
       document.getElementById('newCategory').value = currentCat === 'all' ? '장문' : currentCat;
@@ -1226,7 +1275,7 @@
     }
 
     function openEditModal(id) {
-      if (!requireWritable()) return;
+      if (!requireAdmin()) return;
       const entry = words.find(w => w.id === id);
       if (!entry) return;
       editId = id;
@@ -1254,7 +1303,8 @@
 
     async function handleAddWord(e) {
       e.preventDefault();
-      if (!requireWritable()) return;
+      const asRequest = !editId && !isAdmin;      // 일반 사용자는 요청만 보낼 수 있음
+      if (!asRequest && !requireAdmin()) return;
       let word = document.getElementById('newWord').value.trim();
       const category = document.getElementById('newCategory').value;
       const condition = document.getElementById('newCondition').value.trim();
@@ -1267,6 +1317,12 @@
       }
 
       closeAddModal();
+      if (asRequest) {
+        const req = { type: 'add', category, word };
+        if (category === '미션' && condition) req.condition = condition;
+        await submitRequest(req);
+        return;
+      }
       try {
         if (id) {
           await col.doc(id).update({
@@ -1324,6 +1380,8 @@
       sel.innerHTML = toks.map(t => '<option value="' + attrEsc(t) + '">' + escapeHtml(t) + '</option>').join('');
       sel.value = def;
       document.getElementById('extText').value = '';
+      document.getElementById('ext-title').textContent = isAdmin ? '이어서 추가' : '이어서 추가 요청';
+      document.getElementById('extSubmit').textContent = isAdmin ? '이어 추가' : '요청 보내기';
       document.getElementById('extendModal').classList.remove('hidden');
       updateExtendPreview();
       document.getElementById('extText').focus();
@@ -1354,12 +1412,17 @@
 
     async function handleExtend(e) {
       e.preventDefault();
-      if (!requireWritable()) return;
+      const asRequest = !isAdmin;
+      if (!asRequest && !requireAdmin()) return;
       const base = document.getElementById('extBase').value;
       const text = document.getElementById('extText').value.trim().replace(/\s*\/\s*/g, '/');
       if (!base || !text) return;
 
       closeExtendModal();
+      if (asRequest) {
+        await submitRequest({ type: 'extend', category: '공수', word: text, base });
+        return;
+      }
       try {
         const res = await extendFrom(base, text, extendId);
         showToast(res.appended ? '기존 세트 뒤에 이어 추가했어요!' : '‘' + base + '’ 뒤에 새 줄로 이어 추가했어요!');
@@ -1377,7 +1440,7 @@
     }
 
     function openChainEditor(id) {
-      if (!requireWritable()) return;
+      if (!requireAdmin()) return;
       const entry = words.find(w => w.id === id);
       if (!entry) return;
       chainDraft = { id, groups: parseChain(entry.word).map(g => g.slice()) };
@@ -1480,7 +1543,7 @@
 
     async function handleChainSave(e) {
       e.preventDefault();
-      if (!chainDraft || !requireWritable()) return;
+      if (!chainDraft || !requireAdmin()) return;
       const id = chainDraft.id;
       const gs = cleanDraft();
       if (!gs.length) { showToast('단어를 하나 이상 입력하세요.'); return; }
@@ -1549,7 +1612,7 @@
     }
 
     function onWordsChanged() {
-      document.getElementById('seedBanner').classList.toggle('hidden', !(!readOnly && words.length === 0));
+      document.getElementById('seedBanner').classList.toggle('hidden', !(!readOnly && isAdmin && words.length === 0));
       const sig = words.filter(w => w.category === '공수').map(w => w.word).join('\n');
       if (sig !== chainSig) {     // 공수 단어가 바뀐 경우에만 마인드맵 재구성 (체크/삭제 등으로 레이아웃이 흔들리지 않게)
         chainSig = sig;
@@ -1560,11 +1623,191 @@
       renderWordList();
     }
 
+    // =========================================================================
+    // 관리자 식별 + 추가 요청
+    //  - 일반 사용자: 로그인 없이 requests 컬렉션에 '생성'만 가능 (규칙으로 형식 검증)
+    //  - 관리자: Google 로그인 후 requests 읽기/승인/거절, words 쓰기 (규칙이 이메일로 판정)
+    //  - 아래 isAdmin 은 화면 표시용일 뿐이고, 진짜 권한 검사는 Firestore 보안 규칙이 합니다.
+    // =========================================================================
+    function requireAdmin() {
+      if (!isAdmin) { showToast('관리자만 할 수 있어요.'); return false; }
+      return requireWritable();
+    }
+
+    function updateAdminUi() {
+      document.getElementById('adminTag').classList.toggle('hidden', !isAdmin);
+      document.getElementById('adminBtn').textContent = isAdmin ? '로그아웃' : '관리자 로그인';
+      document.getElementById('addBtn').textContent = isAdmin ? '+ 단어 추가' : '+ 단어 추가 요청';
+      document.getElementById('tab-requests').classList.toggle('hidden', !isAdmin);
+      if (!isAdmin && document.getElementById('content-requests').classList.contains('is-active')) setCategory('all');
+      onWordsChanged();
+      renderRequests();
+    }
+
+    async function toggleAdminLogin() {
+      if (!auth) { showToast('인증을 사용할 수 없어요.'); return; }
+      try {
+        if (auth.currentUser) { await auth.signOut(); showToast('로그아웃했어요.'); return; }
+        await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      } catch (err) {
+        if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+        console.error(err);
+        showToast('로그인에 실패했어요: ' + ((err && (err.code || err.message)) || err));
+      }
+    }
+
+    function watchAuth() {
+      auth.onAuthStateChanged(user => {
+        if (unsubReq) { unsubReq(); unsubReq = null; }
+        requests = [];
+        if (!user) { isAdmin = false; updateAdminUi(); return; }
+        // requests 를 읽을 수 있으면 관리자, 규칙에 막히면 관리자가 아님
+        unsubReq = db.collection('requests').orderBy('createdAt').limit(200).onSnapshot(snap => {
+          requests = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+          const first = !isAdmin;
+          isAdmin = true;
+          if (first) { updateAdminUi(); showToast('관리자로 로그인했어요.'); } else { renderRequests(); }
+          updateReqBadge();
+        }, err => {
+          console.error(err);
+          isAdmin = false;
+          requests = [];
+          updateAdminUi();
+          if (err && err.code === 'permission-denied') { showToast('관리자 계정이 아니에요.'); auth.signOut(); }
+          else showToast('요청 목록을 불러오지 못했어요.');
+        });
+      });
+    }
+
+    // ----- 일반 사용자: 요청 보내기 (브라우저 쪽 간단한 도배 방지, 진짜 방어는 보안 규칙) -----
+    const REQ_COOLDOWN_MS = 15000, REQ_DAILY_MAX = 30;
+
+    function readReqLog() {
+      try {
+        const now = Date.now();
+        return JSON.parse(localStorage.getItem('reqLog') || '[]').filter(t => now - t < 86400000);
+      } catch (e) { return []; }
+    }
+
+    function checkReqLimit() {
+      const log = readReqLog();
+      if (log.length && Date.now() - log[log.length - 1] < REQ_COOLDOWN_MS) { showToast('잠시 후에 다시 요청해 주세요.'); return false; }
+      if (log.length >= REQ_DAILY_MAX) { showToast('오늘 보낼 수 있는 요청 수를 넘었어요.'); return false; }
+      return true;
+    }
+
+    function recordReq() {
+      try { const log = readReqLog(); log.push(Date.now()); localStorage.setItem('reqLog', JSON.stringify(log)); } catch (e) {}
+    }
+
+    async function submitRequest(data) {
+      if (!db || readOnly) { showToast('DB에 연결되지 않아 요청을 보낼 수 없어요.'); return false; }
+      if (!checkReqLimit()) return false;
+      const doc = Object.assign({ status: 'pending', createdAt: firebase.firestore.FieldValue.serverTimestamp() }, data);
+      try {
+        await db.collection('requests').add(doc);
+        recordReq();
+        showToast('요청을 보냈어요! 관리자가 검토 후 반영해요.');
+        return true;
+      } catch (err) { dbError(err); return false; }
+    }
+
+    // ----- 관리자: 요청 목록 / 승인 / 거절 -----
+    function updateReqBadge() {
+      const el = document.getElementById('reqCount');
+      el.textContent = requests.length;
+      el.classList.toggle('hidden', requests.length === 0);
+    }
+
+    function renderRequests() {
+      const body = document.getElementById('reqBody');
+      if (!body) return;
+      body.innerHTML = '';
+      updateReqBadge();
+
+      requests.forEach(r => {
+        const isExt = r.type === 'extend';
+        const isMission = r.category === '미션';
+        const conds = isMission ? parseConditions(r.condition) : [];
+        const word = String(r.word || '');
+        let wordCell;
+        if (isExt) wordCell = chainHtml(String(r.base || '') + ' ' + word, true);
+        else if (r.category === '공수') wordCell = chainHtml(word, true);
+        else if (isMission) wordCell = highlightWord(word, conds);
+        else wordCell = escapeHtml(word);
+        const norm = r.category === '공수' ? word.replace(/\s*\/\s*/g, '/') : word;
+        const dup = !isExt && words.some(w => w.category === r.category && w.word === norm);
+        const t = r.createdAt && r.createdAt.toDate
+          ? r.createdAt.toDate().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + (isExt ? '이어 추가' : '추가') + (dup ? ' <span class="badge">중복</span>' : '') + '</td>' +
+          '<td class="cell-word">' + wordCell + '</td>' +
+          '<td><span class="chip ' + getCategoryColorClass(r.category) + '">' + escapeHtml(String(r.category || '')) + '</span></td>' +
+          '<td>' + (isMission ? conditionBadges(word, conds) : '') + '</td>' +
+          '<td><span class="num">' + escapeHtml(t) + '</span></td>' +
+          '<td><div class="actions">' +
+            '<button class="btn btn-ok" onclick="approveRequest(' + jsAttr(r.id) + ')">승인</button>' +
+            '<button class="btn btn-danger" onclick="rejectRequest(' + jsAttr(r.id) + ')">거절</button>' +
+          '</div></td>';
+        body.appendChild(tr);
+      });
+
+      document.getElementById('reqTableWrap').classList.toggle('hidden', requests.length === 0);
+      document.getElementById('reqEmpty').classList.toggle('hidden', requests.length !== 0);
+    }
+
+    async function approveRequest(id) {
+      if (!requireAdmin() || busyReq.has(id)) return;
+      const r = requests.find(x => x.id === id);
+      if (!r) return;
+      busyReq.add(id);
+      try {
+        if (r.type === 'extend') {
+          await extendFrom(String(r.base), String(r.word), null);
+          showToast('이어 추가를 승인했어요.');
+        } else {
+          const word = r.category === '공수' ? String(r.word).replace(/\s*\/\s*/g, '/') : String(r.word);
+          if (words.some(w => w.category === r.category && w.word === word)) {
+            showToast('이미 있는 단어라 요청만 지웠어요.');
+          } else {
+            const entry = { category: r.category, word, order: Date.now(), memorized: false };
+            if (r.category === '미션' && r.condition) entry.condition = r.condition;
+            await col.add(entry);
+            showToast('승인했어요.');
+          }
+        }
+        await db.collection('requests').doc(id).delete();
+      } catch (err) { dbError(err); }
+      finally { busyReq.delete(id); }
+    }
+
+    async function rejectRequest(id) {
+      if (!requireAdmin()) return;
+      try { await db.collection('requests').doc(id).delete(); showToast('거절했어요.'); }
+      catch (err) { dbError(err); }
+    }
+
+    async function rejectAll() {
+      if (!requireAdmin() || !requests.length) return;
+      if (!confirm('보이는 요청 ' + requests.length + '개를 모두 거절(삭제)할까요?')) return;
+      try {
+        const batch = db.batch();
+        requests.forEach(r => batch.delete(db.collection('requests').doc(r.id)));
+        await batch.commit();
+        showToast('모두 거절했어요.');
+      } catch (err) { dbError(err); }
+    }
+
     function initFirebase() {
       try {
         if (typeof firebase === 'undefined') throw new Error('Firebase SDK 를 불러오지 못했어요.');
         firebase.initializeApp(firebaseConfig);
-        col = firebase.firestore().collection('words');
+        db = firebase.firestore();
+        col = db.collection('words');
+        try { auth = firebase.auth(); watchAuth(); } catch (e) { console.error(e); }
         col.orderBy('order').onSnapshot(snap => {
           dbLoading = false;
           readOnly = false;
@@ -1593,7 +1836,7 @@
 
     // DB 가 비어 있을 때 이 파일의 기본 단어를 업로드 (고정 ID 라서 여러 번 눌러도 중복되지 않음)
     async function uploadSeed() {
-      if (!requireWritable()) return;
+      if (!requireAdmin()) return;
       try {
         const db = firebase.firestore();
         const batch = db.batch();
