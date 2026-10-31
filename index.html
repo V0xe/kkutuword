@@ -214,6 +214,94 @@
       .count { margin-left: 0; width: 100%; }
     }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+    /* ---------- 암기 퀴즈 ---------- */
+    #content-quiz .wrap { padding-top: 20px; padding-bottom: 40px; }
+    .qpre { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .qpre button { text-align: left; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; transition: .15s; }
+    .qpre button:hover { border-color: #5a6178; transform: translateY(-2px); }
+    .qpre b { display: block; font-size: 15px; } .qpre small { color: var(--muted); font-size: 12px; }
+    .qgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .qcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+    .qcard h3 { margin: 0 0 14px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .qrow { margin-bottom: 16px; } .qrow:last-child { margin-bottom: 0; }
+    .qlab { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .qlab small { margin-left: 8px; font-weight: 400; color: var(--faint); }
+    .seg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .seg + .sld { margin-top: 10px; }
+    .opt { height: 34px; padding: 0 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-weight: 700; font-size: 13px; }
+    .opt:hover { border-color: #3a3f52; }
+    .opt small { margin-left: 4px; font-family: var(--mono); font-weight: 500; opacity: .7; }
+    .opt.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+    .opt.cat.on { background: var(--c); border-color: var(--c); color: #0e1016; }
+    .qchk { display: flex; margin-bottom: 8px; font-size: 13px; color: var(--ink); } .qchk small { color: var(--faint); }
+    .sld { display: flex; align-items: center; gap: 12px; } .sld input { flex: 1; accent-color: #a8b0c8; }
+    .sld b { min-width: 58px; text-align: right; font-family: var(--mono); }
+    .qnote { margin-bottom: 12px; padding: 8px 12px; border-radius: var(--radius); background: #3a2e0a; color: #fbbf24; font-size: 12px; }
+    .pk { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); cursor: pointer; } .pk:hover { background: var(--surface-2); }
+    #qPickList { max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); margin-top: 10px; }
+    .qbar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 -8px 24px rgba(0,0,0,.35); }
+    #qSum { font-size: 13px; color: var(--muted); } #qSum b { color: var(--ink); font-size: 20px; font-family: var(--mono); }
+    .qgo { height: 44px; padding: 0 28px; font-size: 15px; } .qgo:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* 플레이 */
+    .qtop { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-bottom: 10px; }
+    .qstat { font-family: var(--mono); font-size: 12px; color: var(--muted); } .qstat b { color: var(--ink); font-size: 20px; margin-left: 4px; }
+    .qheart { color: #fb7185; letter-spacing: 2px; font-size: 18px; }
+    .combo { padding: 2px 12px; border-radius: 999px; background: #3a2e0a; color: #fbbf24; font-family: var(--mono); font-weight: 700; border: 1px solid #5c4710; }
+    .combo.pop { animation: qpop .35s; }
+    @keyframes qpop { 40% { transform: scale(1.35); } }
+    .qprog, .qtime { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+    .qprog i { display: block; height: 100%; background: #60a5fa; transition: width .3s; }
+    .qtime { height: 12px; margin-top: 12px; border-radius: 6px; }
+    .qtime i { display: block; height: 100%; width: 100%; background: #34d399; border-radius: 6px; transition: background .3s; }
+    .qtime i.mid { background: #fbbf24; } .qtime i.low { background: #f87171; animation: qblink .6s infinite; }
+    @keyframes qblink { 50% { opacity: .55; } }
+    .qtime.inf { opacity: .25; }
+    .qtimetxt { margin-top: 4px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .qstage { position: relative; overflow: hidden; margin-top: 10px; padding: 30px 22px 26px; text-align: center; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; transition: border-color .2s, box-shadow .2s; }
+    .qstage.good { border-color: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.16); }
+    .qstage.bad { border-color: #f87171; box-shadow: 0 0 0 4px rgba(248,113,113,.16); }
+    .qstage.shake { animation: qshake .4s; }
+    @keyframes qshake { 20%, 60% { transform: translateX(-9px); } 40%, 80% { transform: translateX(9px); } }
+    .rtag { margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #2a1a3a; color: #c4b5fd; font-size: 11px; font-weight: 700; }
+    .qask { margin-top: 16px; font-size: clamp(19px, 3.4vw, 28px); font-weight: 700; line-height: 1.7; }
+    .qask .tgt { display: inline-block; padding: 0 .35em; border-radius: 8px; background: #fbbf24; color: #0e1016; }
+    .qask .mbadge { font-size: 1em; }
+    .qsub { margin-top: 6px; color: var(--muted); font-size: 13px; } .qsub b.ka { color: #fb7185; } .qsub b.kd { color: #a78bfa; }
+    .qchain { justify-content: center; gap: 12px; } .tok.big { padding: 6px 18px; font-size: clamp(20px, 4vw, 30px); }
+    .slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 20px 0 6px; }
+    .slot { width: clamp(30px, 5.4vw, 46px); height: clamp(38px, 6.6vw, 56px); display: grid; place-items: center; border-radius: 9px; border: 2px dashed #3a3f52; font-size: clamp(17px, 3vw, 26px); font-weight: 700; }
+    .slot.rev { border: 2px solid #60a5fa; background: #13203a; color: #bcd7ff; }
+    .slot.cho { border: 2px solid var(--line); color: var(--faint); background: var(--surface-2); }
+    .slot.more { border: 0; width: auto; color: var(--faint); }
+    .qinfo { color: var(--muted); font-family: var(--mono); font-size: 12px; min-height: 18px; }
+    .qinput { width: 100%; max-width: 560px; height: 62px; margin-top: 16px; font-size: 26px; font-weight: 700; text-align: center; background: var(--surface-2); border: 2px solid var(--line); border-radius: 12px; }
+    .qinput:focus { outline: none; border-color: #a8b0c8; }
+    .qmsg { min-height: 20px; margin-top: 8px; color: #fbbf24; font-size: 13px; font-weight: 700; }
+    .qbtns { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .qfb { margin-top: 16px; padding: 16px; border-radius: 12px; text-align: center; border: 1px solid; }
+    .qfb.good { background: #10231b; border-color: #1f5f46; } .qfb.bad { background: #2a1214; border-color: #7f2d2d; }
+    .qfbh { font-size: 20px; font-weight: 700; } .qfb .pts { color: #34d399; font-family: var(--mono); } .qfb .mine { margin-left: 8px; color: var(--muted); font-size: 13px; font-weight: 400; }
+    .qans { margin-top: 8px; font-size: 22px; } .qans b { color: #fbbf24; }
+    .qfull { font-size: 20px; font-weight: 700; word-break: break-all; }
+    .qfb .chain { justify-content: center; margin-top: 10px; } .qfb .qfull { display: block; margin-top: 10px; }
+    .qpop { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); font: 700 30px var(--mono); color: #34d399; pointer-events: none; animation: qrise .9s ease-out forwards; }
+    @keyframes qrise { to { transform: translate(-50%, -34px); opacity: 0; } }
+    .qkeys { margin-top: 14px; text-align: center; color: var(--faint); font-size: 12px; }
+
+    /* 결과 */
+    .rhead { display: flex; align-items: center; gap: 24px; margin-bottom: 18px; }
+    .rhead h2 { font-size: 24px; }
+    .rgrade { width: 112px; height: 112px; display: grid; place-items: center; border-radius: 24px; font: 700 70px var(--mono); border: 3px solid var(--g); color: var(--g); background: color-mix(in srgb, var(--g) 12%, var(--surface)); animation: qpop .6s; }
+    .g-S { --g: #fbbf24; } .g-A { --g: #34d399; } .g-B { --g: #60a5fa; } .g-C { --g: #a78bfa; } .g-D, .g--, .g-- { --g: #8a90a2; }
+    .rstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .rstats div { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+    .rstats small { display: block; color: var(--muted); font-size: 12px; } .rstats b { font: 700 24px var(--mono); }
+    .rrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+    .rrow .mine { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 860px) { .qgrid { grid-template-columns: 1fr; } .rhead { flex-direction: column; align-items: flex-start; } }
   </style>
 </head>
 <body>
@@ -239,6 +327,7 @@
       <button class="tab" id="tab-공수" onclick="setCategory('공수')">공수</button>
       <button class="tab" id="tab-미션" onclick="setCategory('미션')">미션</button>
       <button class="tab" id="tab-예능" onclick="setCategory('예능')">예능</button>
+      <button class="tab" id="tab-quiz" onclick="showQuiz()">🧠 암기 퀴즈</button>
       <button class="tab hidden" id="tab-requests" onclick="showRequests()">요청 관리<span class="tab-badge hidden" id="reqCount">0</span></button>
       <button class="tab tab-tree" id="tab-tree" onclick="showTree()">공수 마인드맵</button>
     </div>
@@ -268,6 +357,67 @@
             <tbody id="wordTableBody"></tbody>
           </table>
         </div>
+      </div>
+    </main>
+
+    <!-- 암기 퀴즈 -->
+    <main id="content-quiz" class="view">
+      <div class="wrap">
+        <section id="qSetup">
+          <div class="req-head">
+            <div><h2>🧠 암기 퀴즈</h2><p>단어를 보지 않고 직접 입력해서 외워 봐요. 설정은 자동으로 저장돼요.</p></div>
+            <button class="btn btn-ghost" onclick="qReset()">설정 초기화</button>
+          </div>
+          <div id="qPre" class="qpre"></div>
+          <div id="qCards" class="qgrid"></div>
+          <div class="qcard" style="margin-top:14px">
+            <h3><i style="font-style:normal">🖐</i>원하는 단어만 고르기</h3>
+            <label class="check qchk"><input type="checkbox" id="qPickOn" onchange="qSet('pick', this.checked)">직접 고른 단어만 출제 <small>&nbsp;켜면 위의 범위 필터는 무시돼요</small></label>
+            <div id="qPickBody" class="hidden">
+              <div class="seg">
+                <input id="qPickSearch" class="field" style="flex:1;min-width:160px" placeholder="단어 · 조건 검색…" oninput="qPickRender()">
+                <button class="btn btn-sm" onclick="qPickBulk('all')">보이는 것 모두 선택</button>
+                <button class="btn btn-sm" onclick="qPickBulk('none')">보이는 것 해제</button>
+                <button class="btn btn-sm" onclick="qPickBulk('unmem')">미암기만 선택</button>
+                <span id="qPickCnt" class="count" style="margin-left:0"></span>
+              </div>
+              <div id="qPickList"></div>
+            </div>
+          </div>
+          <div class="qbar"><div id="qSum"></div><button id="qStartBtn" class="btn btn-light qgo" onclick="qStart()">▶ 퀴즈 시작</button></div>
+        </section>
+
+        <section id="qPlay" class="hidden">
+          <div class="qtop">
+            <button class="btn btn-sm" onclick="qQuit()">✕ 그만하기</button>
+            <span class="qstat">문제<b id="qCnt"></b></span>
+            <span class="qstat">점수<b id="qScore">0</b></span>
+            <span class="qheart" id="qHeart"></span>
+            <span class="combo hidden" id="qCombo"></span>
+          </div>
+          <div class="qprog"><i id="qProg"></i></div>
+          <div class="qtime" id="qTimeBox"><i id="qTimeBar"></i></div>
+          <div class="qtimetxt" id="qTimeTxt"></div>
+          <div class="qstage" id="qStage">
+            <div id="qCat"></div>
+            <div class="qask" id="qAsk"></div>
+            <div class="slots" id="qSlots"></div>
+            <div class="qinfo" id="qInfo"></div>
+            <div id="qAct">
+              <input type="text" id="qInput" class="qinput" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="정답 입력 후 Enter" onkeydown="qKey(event)">
+              <div class="qmsg" id="qMsg"></div>
+              <div class="qbtns">
+                <button class="btn btn-light" onclick="qSubmit()">제출 ↵</button>
+                <button class="btn" id="qHintBtn" onclick="qHint()"></button>
+                <button class="btn" onclick="qPass()">패스</button>
+              </div>
+            </div>
+            <div class="qfb hidden" id="qFb"></div>
+          </div>
+          <p class="qkeys">Enter 제출 / 다음 · Tab 힌트</p>
+        </section>
+
+        <section id="qResult" class="hidden"></section>
       </div>
     </main>
 
@@ -579,14 +729,14 @@
     const CLICK_THRESHOLD = 5;
     const NODE_H = 34;
     const PLUS_R = 10;
-    const MISSION_LETTERS = '가나다라마바사아자차카타파하'.split('');
+    const MISSION_LETTERS = '가나다라마바사아자차카타파하abcdefghijklmnopqrstuvwxyz'.split('');
     const ROLE_COLORS = { attack: '#fb7185', defense: '#a78bfa', solo: '#8a90a2' };
 
     const CAT_NOTES = {
       all: '모든 단어를 모아 봐요. 외운 단어는 왼쪽 체크박스로 표시하세요.',
       '장문': '길이가 긴 단어예요. 길게 받아칠수록 점수를 더 받아요. <b>글자 수 많은 순</b>으로 정렬돼 있어요.',
       '공수': '잇기 어려운 <b class="k-atk">공격 단어</b>와 그걸 받아치는 <b class="k-def">수비 단어</b>예요. <b>→</b> 는 이어지는 순서, <b>/</b> 는 같은 자리에서 고를 수 있는 단어, <u>밑줄 글자</u>는 서로 이어지는 글자예요. 단어를 누르면 복사되고, <b>＋ 이어 추가</b>로 원래 있던 세트 뒤에 단어를 더 이을 수 있어요.',
-      '미션': '화면 구석의 미션 글자(가나다라마바사아자차카타파하)가 많이 들어갈수록 점수를 더 받아요. <b class="k-hl">색으로 강조된 글자</b>가 미션 글자예요. 위의 글자 버튼으로 골라 볼 수 있어요.',
+      '미션': '화면 구석의 미션 글자(가나다라마바사아자차카타파하, a~z)가 많이 들어갈수록 점수를 더 받아요. <b class="k-hl">색으로 강조된 글자</b>가 미션 글자예요. 위의 글자 버튼으로 골라 볼 수 있어요.',
       '예능': '상대를 제압하려는 단어가 아니라, 웃기려고 쓰는 단어들이에요.'
     };
 
@@ -1931,6 +2081,377 @@
       buildCanvasGraph();
       setCategory('all');
       initFirebase();
+    }
+
+    // =========================================================================
+    // 암기 퀴즈
+    // =========================================================================
+    const QK = 'kkuko_quiz_v1', QSTAT = 'kkuko_qstats', QBEST = 'kkuko_qbest';
+    const QDEF = { cats: ['장문', '공수', '미션', '예능'], letters: [], mem: 'all', minLen: 0, maxLen: 0, pick: false, picked: [],
+      count: 10, order: 'random', chainDir: 'f', timeMode: 'none', perQ: 15, totalSec: 120, bonus: 0, penalty: 0,
+      hint0: 1, showLen: true, showCho: false, hintBtn: true, hintCost: 30, lives: 0, tries: 1, requeue: true,
+      ignoreSpace: true, autoNext: 0, sound: true, combo: true };
+    const QPRE = [
+      { n: '🐢 느긋하게', d: '시간 무제한 · 초성 힌트', v: { timeMode: 'none', hint0: 2, showLen: true, showCho: true, lives: 0, tries: 0 } },
+      { n: '⚡ 기본', d: '문제당 20초', v: { timeMode: 'per', perQ: 20, hint0: 1, showLen: true, showCho: false, lives: 0, tries: 1 } },
+      { n: '🔥 스피드런', d: '전체 90초 · 정답 +3초', v: { timeMode: 'total', totalSec: 90, bonus: 3, penalty: 3, count: 0, hint0: 0, showLen: true, lives: 0, tries: 1, autoNext: 1 } },
+      { n: '💀 서바이벌', d: '하트 3개 · 문제당 10초', v: { timeMode: 'per', perQ: 10, hint0: 0, showLen: false, showCho: false, hintBtn: false, lives: 3, tries: 1, count: 0 } }
+    ];
+    const qe = id => document.getElementById(id);
+    function qLoad(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
+    function qSave(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+    let QS = Object.assign({}, QDEF, qLoad(QK, {}));
+    let Q = { run: false, phase: '' };
+    let QR = { wrong: [], okIds: [] };
+    let qAC = null;
+
+    function qFmt(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+    function qJosa(s) { const c = [...s].pop().charCodeAt(0); if (c >= 0xAC00 && c <= 0xD7A3) { const j = (c - 0xAC00) % 28; return j === 0 || j === 8 ? '로' : '으로'; } return '로'; }
+    function qCho(c) { const k = c.charCodeAt(0); return k >= 0xAC00 && k <= 0xD7A3 ? 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'[Math.floor((k - 0xAC00) / 588)] : c; }
+    function qNorm(s) { s = s.normalize('NFC').toLowerCase(); return QS.ignoreSpace ? s.replace(/\s+/g, '') : s.trim().replace(/\s+/g, ' '); }
+    function qShuf(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function qSnd(t) {
+      if (!QS.sound) return;
+      try {
+        qAC = qAC || new (window.AudioContext || window.webkitAudioContext)();
+        const seq = { ok: [660, 880], bad: [200, 150], fin: [523, 659, 784, 1047] }[t];
+        seq.forEach((f, i) => {
+          const o = qAC.createOscillator(), g = qAC.createGain(), s = qAC.currentTime + i * .09;
+          o.type = t === 'bad' ? 'sawtooth' : 'sine'; o.frequency.value = f;
+          g.gain.setValueAtTime(.07, s); g.gain.exponentialRampToValueAtTime(.001, s + .12);
+          o.connect(g); g.connect(qAC.destination); o.start(s); o.stop(s + .13);
+        });
+      } catch (e) {}
+    }
+
+    // ---------- 화면 전환 ----------
+    function showQuiz() {
+      setActiveTab('tab-quiz'); setView('quiz');
+      if (!Q.run && qe('qPlay').classList.contains('hidden') && qe('qResult').classList.contains('hidden')) renderSetup();
+    }
+    function qShow(n) {
+      qe('qSetup').classList.toggle('hidden', n !== 'setup');
+      qe('qPlay').classList.toggle('hidden', n !== 'play');
+      qe('qResult').classList.toggle('hidden', n !== 'result');
+    }
+    function qRefresh() { if (qe('content-quiz').classList.contains('is-active') && !qe('qSetup').classList.contains('hidden')) renderSetup(); }
+    const _owc = onWordsChanged;
+    onWordsChanged = function () { _owc(); qRefresh(); };
+
+    // ---------- 설정 UI ----------
+    function qSet(k, v) { QS[k] = v; qSave(QK, QS); renderSetup(); }
+    function qReset() { QS = JSON.parse(JSON.stringify(QDEF)); qSave(QK, QS); renderSetup(); showToast('설정을 초기화했어요.'); }
+    function qPreset(i) { Object.assign(QS, QPRE[i].v); qSave(QK, QS); renderSetup(); showToast(QPRE[i].n + ' 적용!'); }
+    function qCat(c) { const s = new Set(QS.cats); s.has(c) ? s.delete(c) : s.add(c); QS.cats = [...s]; qSave(QK, QS); renderSetup(); }
+    function qLet(l) { const s = new Set(QS.letters); s.has(l) ? s.delete(l) : s.add(l); QS.letters = [...s]; qSave(QK, QS); renderSetup(); }
+    function qSlide(k, v, u) { QS[k] = +v; qSave(QK, QS); qe('qv_' + k).textContent = v + u; qSum(); }
+    function qRow(l, h, s) { return '<div class="qrow"><span class="qlab">' + l + (s ? '<small>' + s + '</small>' : '') + '</span>' + h + '</div>'; }
+    function qSeg(k, o) {
+      return '<div class="seg">' + o.map(x => '<button type="button" class="opt' + (QS[k] === x[0] ? ' on' : '') + '" onclick="qSet(\'' + k + '\',' + JSON.stringify(x[0]).replace(/"/g, '&quot;') + ')">' + x[1] + '</button>').join('') + '</div>';
+    }
+    function qChk(k, l, s) { return '<label class="check qchk"><input type="checkbox"' + (QS[k] ? ' checked' : '') + ' onchange="qSet(\'' + k + '\',this.checked)">' + l + (s ? '<small>&nbsp;' + s + '</small>' : '') + '</label>'; }
+    function qNum(k, min, max, ph) {
+      return '<input type="number" class="field" style="width:84px" min="' + min + '" max="' + max + '" placeholder="' + ph + '" value="' + (QS[k] || '') + '" onchange="qSet(\'' + k + '\',Math.max(' + min + ',Math.min(' + max + ',parseInt(this.value,10)||0)))">';
+    }
+    function qSld(k, min, max, step, u) {
+      return '<div class="sld"><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" value="' + QS[k] + '" oninput="qSlide(\'' + k + '\',this.value,\'' + u + '\')" onchange="renderSetup()"><b id="qv_' + k + '">' + QS[k] + u + '</b></div>';
+    }
+
+    function renderSetup() {
+      qe('qPre').innerHTML = QPRE.map((p, i) => '<button onclick="qPreset(' + i + ')"><b>' + p.n + '</b><small>' + p.d + '</small></button>').join('');
+      const cats = ['장문', '공수', '미션', '예능'], tm = QS.timeMode;
+      const A = '<div class="qcard"><h3><i style="font-style:normal">🎯</i>출제 범위</h3>' + (QS.pick ? '<div class="qnote">‘직접 고르기’ 사용 중이라 이 필터는 무시돼요.</div>' : '') +
+        qRow('카테고리', '<div class="seg">' + cats.map(c => '<button class="opt cat cat-' + c + (QS.cats.includes(c) ? ' on' : '') + '" onclick="qCat(\'' + c + '\')">' + c + '<small>' + words.filter(w => w.category === c).length + '</small></button>').join('') + '</div>') +
+        (QS.cats.includes('미션') ? qRow('미션 글자', '<div class="seg">' + MISSION_LETTERS.map(l => '<button class="opt' + (QS.letters.includes(l) ? ' on' : '') + '" onclick="qLet(\'' + l + '\')">' + l + '</button>').join('') + '</div>', '비우면 전체 · 고른 글자가 조건에 있는 미션 단어만') : '') +
+        qRow('암기 상태', qSeg('mem', [['all', '전체'], ['no', '미암기만'], ['yes', '암기한 것만']])) +
+        qRow('글자 수', '<div class="seg">최소 ' + qNum('minLen', 0, 99, '0') + ' ~ 최대 ' + qNum('maxLen', 0, 99, '0') + '</div>', '0 = 제한 없음') + '</div>';
+      const B = '<div class="qcard"><h3><i style="font-style:normal">📋</i>문제 구성</h3>' +
+        qRow('문제 수', '<div class="seg">' + [[5, '5'], [10, '10'], [20, '20'], [30, '30'], [50, '50']].map(x => '<button class="opt' + (QS.count === x[0] ? ' on' : '') + '" onclick="qSet(\'count\',' + x[0] + ')">' + x[1] + '</button>').join('') +
+          '<button class="opt' + (QS.count === 0 ? ' on' : '') + '" onclick="qSet(\'count\',0)">전체</button>' + qNum('count', 0, 999, '직접') + '</div>') +
+        qRow('출제 순서', qSeg('order', [['random', '랜덤'], ['input', '입력순'], ['weak', '자주 틀린 것 먼저'], ['long', '긴 것부터'], ['short', '짧은 것부터']])) +
+        qRow('공수 문제 방향', qSeg('chainDir', [['f', '공격 → 수비'], ['b', '수비 → 공격'], ['m', '섞기']]), '공격을 보고 이을 수비를 맞혀요') + '</div>';
+      const C = '<div class="qcard"><h3><i style="font-style:normal">⏱</i>시간 제한</h3>' + qRow('방식', qSeg('timeMode', [['none', '무제한'], ['per', '문제당'], ['total', '전체']])) +
+        (tm === 'per' ? qRow('문제당 제한', qSeg('perQ', [[5, '5초'], [10, '10초'], [15, '15초'], [20, '20초'], [30, '30초'], [60, '60초']]) + qSld('perQ', 3, 120, 1, '초'), '시간이 끝나면 오답 처리') : '') +
+        (tm === 'total' ? qRow('전체 제한', qSeg('totalSec', [[30, '30초'], [60, '1분'], [90, '1분 30초'], [120, '2분'], [180, '3분'], [300, '5분'], [600, '10분']]) + qSld('totalSec', 10, 900, 5, '초'), '끝나면 그 자리에서 종료') +
+          qRow('정답 보너스', qSld('bonus', 0, 10, 1, '초'), '정답마다 시간 추가') + qRow('오답 페널티', qSld('penalty', 0, 10, 1, '초'), '오답마다 시간 차감') : '') +
+        (tm === 'none' ? '<p class="hint">시간 압박 없이 천천히 외워요.</p>' : '') + '</div>';
+      const D = '<div class="qcard"><h3><i style="font-style:normal">💡</i>힌트 · 표시</h3>' +
+        qRow('처음부터 보여줄 글자', qSeg('hint0', [[0, '없음'], [1, '1글자'], [2, '2글자'], [3, '3글자']]), '문제에 “[ ]로 시작하는 단어”로 표시') +
+        qChk('showLen', '글자 수 칸 보이기') + qChk('showCho', '초성 보이기', '칸 안에 ㄱㅅㅌ 표시') + qChk('hintBtn', '힌트 버튼 허용', 'Tab 키') +
+        (QS.hintBtn ? qRow('힌트 감점', qSeg('hintCost', [[0, '없음'], [15, '15%'], [30, '30%'], [50, '50%']])) : '') + '</div>';
+      const E = '<div class="qcard full" style="grid-column:1/-1"><h3><i style="font-style:normal">⚙️</i>규칙 · 연출</h3><div class="qgrid">' +
+        '<div>' + qRow('하트(목숨)', qSeg('lives', [[0, '무제한'], [3, '♥ 3'], [5, '♥ 5'], [10, '♥ 10']])) + qRow('문제당 기회', qSeg('tries', [[1, '1번'], [2, '2번'], [3, '3번'], [0, '무제한']]), '틀려도 다시 입력 가능') + '</div>' +
+        '<div>' + qRow('정답 후 자동 넘김', qSeg('autoNext', [[0, '수동'], [1, '1초'], [2, '2초'], [3, '3초']])) +
+          qChk('requeue', '틀린 단어 한 번 더 출제', '맨 뒤에 다시 등장') + qChk('ignoreSpace', '띄어쓰기 무시') + qChk('sound', '효과음') + qChk('combo', '콤보 점수 보너스') + '</div></div></div>';
+      qe('qCards').innerHTML = A + B + C + D + E;
+      qe('qPickOn').checked = QS.pick;
+      qe('qPickBody').classList.toggle('hidden', !QS.pick);
+      if (QS.pick) qPickRender();
+      qSum();
+    }
+
+    // ---------- 출제 대상 ----------
+    function qPool() {
+      if (QS.pick) { const s = new Set(QS.picked); return words.filter(w => s.has(w.id)); }
+      return words.filter(w => {
+        if (!QS.cats.includes(w.category)) return false;
+        if (QS.mem === 'no' && w.memorized) return false;
+        if (QS.mem === 'yes' && !w.memorized) return false;
+        const n = charLen(w.word);
+        if (QS.minLen && n < QS.minLen) return false;
+        if (QS.maxLen && n > QS.maxLen) return false;
+        if (w.category === '미션' && QS.letters.length && !parseConditions(w.condition).some(c => QS.letters.includes(c.ch))) return false;
+        return true;
+      });
+    }
+    function qSum() {
+      const n = qPool().length, c = QS.count ? Math.min(QS.count, n) : n;
+      const t = QS.timeMode === 'none' ? '시간 무제한' : QS.timeMode === 'per' ? '문제당 ' + QS.perQ + '초' : '전체 ' + qFmt(QS.totalSec) + (QS.bonus ? ' · 정답 +' + QS.bonus + '초' : '');
+      qe('qSum').innerHTML = '<b>' + c + '</b>문제 <span>(출제 가능 ' + n + '개)</span> · ' + t + (QS.lives ? ' · ♥' + QS.lives : '');
+      qe('qStartBtn').disabled = !n;
+    }
+    function qPickVis() {
+      const s = qe('qPickSearch').value.trim().toLowerCase();
+      return words.filter(w => !s || w.word.toLowerCase().includes(s) || (w.condition || '').includes(s));
+    }
+    function qPickRender() {
+      const ps = new Set(QS.picked);
+      qe('qPickList').innerHTML = qPickVis().map(w => '<label class="pk"><input type="checkbox" ' + (ps.has(w.id) ? 'checked' : '') + ' onchange="qPick(' + jsAttr(w.id) + ',this.checked)"><span class="chip ' + getCategoryColorClass(w.category) + '">' + escapeHtml(w.category) + '</span><span>' + escapeHtml(w.word) + '</span>' + (w.condition ? '<span class="badge">' + escapeHtml(w.condition) + '</span>' : '') + '</label>').join('') || '<div class="empty">단어가 없어요.</div>';
+      qe('qPickCnt').textContent = QS.picked.length + '개 선택';
+    }
+    function qPick(id, on) {
+      const s = new Set(QS.picked); on ? s.add(id) : s.delete(id);
+      QS.picked = [...s]; qSave(QK, QS); qe('qPickCnt').textContent = QS.picked.length + '개 선택'; qSum();
+    }
+    function qPickBulk(m) {
+      const vis = qPickVis(), s = new Set(QS.picked);
+      if (m === 'all') vis.forEach(w => s.add(w.id));
+      else if (m === 'none') vis.forEach(w => s.delete(w.id));
+      else { s.clear(); vis.filter(w => !w.memorized).forEach(w => s.add(w.id)); }
+      QS.picked = [...s]; qSave(QK, QS); qPickRender(); qSum();
+    }
+
+    // ---------- 시작 / 문제 만들기 ----------
+    function qStart(custom) {
+      const pool = custom || qPool();
+      if (!pool.length) { showToast('출제할 단어가 없어요.'); return; }
+      const stat = qLoad(QSTAT, {});
+      let a = pool.slice();
+      if (!custom && QS.order === 'input') { /* 입력순 그대로 */ }
+      else if (QS.order === 'long' && !custom) a = qShuf(a).sort((x, y) => charLen(y.word) - charLen(x.word));
+      else if (QS.order === 'short' && !custom) a = qShuf(a).sort((x, y) => charLen(x.word) - charLen(y.word));
+      else if (QS.order === 'weak' && !custom) { const sc = w => { const s = stat[w.id] || { o: 0, n: 0 }; return s.n - s.o + Math.random() * .9; }; a.sort((x, y) => sc(y) - sc(x)); }
+      else qShuf(a);
+      if (QS.count && !custom) a = a.slice(0, QS.count);
+      Q = { run: true, phase: '', list: a, i: -1, res: [], score: 0, combo: 0, maxCombo: 0, ok: 0, lives: QS.lives, t0: Date.now(), last: Date.now(),
+        reqd: new Set(), stat, totalLeft: QS.totalSec * 1000, totalMax: QS.totalSec * 1000, over: '' };
+      qShow('play');
+      qNext();
+    }
+    function qMake(w) {
+      const q = { w, hints: 0, tries: 0 };
+      let ans = [w.word];
+      if (w.category === '공수') {
+        const g = parseChain(w.word);
+        if (g.length > 1) {
+          const d = QS.chainDir === 'm' ? (Math.random() < .5 ? 'f' : 'b') : QS.chainDir;
+          const i = Math.floor(Math.random() * (g.length - 1));
+          const src = d === 'f' ? g[i] : g[i + 1];
+          q.type = 'chain'; q.dir = d; q.step = i; q.from = src[Math.floor(Math.random() * src.length)];
+          q.ans = d === 'f' ? g[i + 1] : g[i]; q.base = 1;
+          return q;
+        }
+        ans = g[0] || ans;
+      }
+      q.type = 'word'; q.dir = 'f'; q.ans = ans; q.base = QS.hint0;
+      return q;
+    }
+    function qNext() {
+      if (!Q.run || Q.phase === 'q') return;
+      if (Q.over || Q.i + 1 >= Q.list.length) { qEnd(Q.over || 'clear'); return; }
+      Q.i++;
+      Q.q = qMake(Q.list[Q.i]);
+      Q.q.again = Q.reqd.has(Q.q.w.id) && Q.i >= Q.list.length - Q.reqd.size;
+      Q.phase = 'q'; Q.remain = QS.perQ * 1000; Q.last = Date.now();
+      const st = qe('qStage'); st.className = 'qstage';
+      qe('qCat').innerHTML = '<span class="chip ' + getCategoryColorClass(Q.q.w.category) + '">' + escapeHtml(Q.q.w.category) + '</span>' + (Q.q.again ? '<span class="rtag">재도전</span>' : '');
+      qe('qAsk').innerHTML = qAsk(Q.q);
+      qSlotsRender();
+      qe('qMsg').textContent = '';
+      qe('qFb').className = 'qfb hidden'; qe('qFb').innerHTML = '';
+      qe('qAct').classList.remove('hidden');
+      const inp = qe('qInput'); inp.value = ''; inp.readOnly = false; inp.focus();
+      const hb = qe('qHintBtn'); hb.classList.toggle('hidden', !QS.hintBtn);
+      qHud(); qTimerRender();
+    }
+    function qAsk(q) {
+      const w = q.w;
+      if (q.type === 'chain') {
+        const fwd = q.dir === 'f', ch = [...q.from], hl = c => '<b>' + escapeHtml(c) + '</b>';
+        const link = fwd ? ch.slice(0, -1).map(escapeHtml).join('') + hl(ch[ch.length - 1]) : hl(ch[0]) + ch.slice(1).map(escapeHtml).join('');
+        const dRole = fwd ? 'def' : (q.step === 0 ? 'atk' : 'def'), sRole = fwd ? (q.step === 0 ? 'atk' : 'def') : 'def';
+        const s = '<span class="alt ' + sRole + '"><span class="tok big">' + link + '</span></span>', d = '<span class="alt ' + dRole + '"><span class="tok big">?</span></span>';
+        return '<div class="chain qchain">' + (fwd ? s + '<span class="arrow">→</span>' + d : d + '<span class="arrow">→</span>' + s) + '</div>' +
+          '<div class="qsub">' + (fwd ? '이어서 받아칠 ' : '이 단어로 이어지는 ') + '<b class="' + (dRole === 'atk' ? 'ka' : 'kd') + '">' + (dRole === 'atk' ? '공격' : '수비') + '</b> 단어는?' + (q.ans.length > 1 ? ' (정답 ' + q.ans.length + '개 중 하나)' : '') + '</div>';
+      }
+      const pre = [...w.word].slice(0, q.base).join('');
+      const conds = w.category === '미션' ? parseConditions(w.condition) : [];
+      let h = conds.map((c, i) => '<span class="mbadge hl-' + (i % 3) + '">' + escapeHtml(c.ch) + ' <small>×' + c.n + '</small></span>').join('');
+      if (conds.length) h += ' 미션인 ';
+      if (pre) h += '<span class="tgt">' + escapeHtml(pre) + '</span>' + qJosa(pre) + ' 시작하는 ';
+      return h + '단어는?';
+    }
+    function qSlotsRender() {
+      const q = Q.q, s = [...q.ans[0]], n = s.length, k = q.base + q.hints;
+      const rev = i => q.dir === 'f' ? i < k : i >= n - k;
+      let h;
+      if (!QS.showLen && !QS.showCho) {
+        const r = s.filter((_, i) => rev(i)).map(c => '<span class="slot rev">' + escapeHtml(c) + '</span>').join(''), dots = '<span class="slot more">…</span>';
+        h = q.dir === 'f' ? r + dots : dots + r;
+      } else {
+        h = s.map((c, i) => rev(i) ? '<span class="slot rev">' + escapeHtml(c) + '</span>' : '<span class="slot' + (QS.showCho ? ' cho' : '') + '">' + (QS.showCho ? escapeHtml(qCho(c)) : '') + '</span>').join('');
+      }
+      qe('qSlots').innerHTML = h;
+      const lens = [...new Set(q.ans.map(a => [...a].length))].join(' / ');
+      qe('qInfo').textContent = QS.showLen || QS.showCho ? lens + '글자' + (q.hints ? ' · 힌트 ' + q.hints + '회' : '') : (q.hints ? '힌트 ' + q.hints + '회' : '');
+      const hb = qe('qHintBtn'); hb.textContent = '💡 힌트' + (QS.hintCost ? ' (−' + QS.hintCost + '%)' : '');
+      hb.disabled = k >= n - 1;
+    }
+
+    // ---------- 입력 / 판정 ----------
+    function qKey(e) {
+      if (e.key === 'Tab') { e.preventDefault(); qHint(); return; }
+      if (e.key === 'Enter' && Q.phase === 'q') { if (e.isComposing) { setTimeout(qSubmit, 0); return; } e.preventDefault(); qSubmit(); }
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && Q.run && Q.phase === 'fb' && qe('content-quiz').classList.contains('is-active') && Date.now() - Q.fbAt > 350) { e.preventDefault(); qNext(); }
+    });
+    function qHint() {
+      if (Q.phase !== 'q' || !QS.hintBtn) return;
+      const q = Q.q, n = [...q.ans[0]].length;
+      if (q.base + q.hints >= n - 1) return;
+      q.hints++; qSlotsRender(); qe('qInput').focus();
+    }
+    function qPass() { if (Q.phase === 'q') qOutcome(false, '', 'pass'); }
+    function qQuit() { if (confirm('퀴즈를 그만할까요?')) qEnd('quit'); }
+    function qSubmit() {
+      if (Q.phase !== 'q') return;
+      const v = qe('qInput').value;
+      if (!v.trim()) return;
+      const nv = qNorm(v), ok = Q.q.ans.some(a => qNorm(a) === nv);
+      Q.q.tries++;
+      if (ok) { qOutcome(true, v); return; }
+      qSnd('bad');
+      const st = qe('qStage'); st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake');
+      if (QS.tries && Q.q.tries >= QS.tries) { qOutcome(false, v); return; }
+      qe('qMsg').textContent = '다시 도전! ' + (QS.tries ? '남은 기회 ' + (QS.tries - Q.q.tries) + '회' : '');
+      qe('qInput').select();
+    }
+    function qOutcome(ok, given, why) {
+      Q.phase = 'fb'; Q.fbAt = Date.now();
+      const q = Q.q, st = Q.stat[q.w.id] || (Q.stat[q.w.id] = { o: 0, n: 0 });
+      let pts = 0, det = '';
+      if (ok) {
+        const base = Math.max(20, 100 - q.hints * QS.hintCost);
+        const tb = QS.timeMode === 'per' ? Math.round(50 * Q.remain / (QS.perQ * 1000)) : 0;
+        const cm = QS.combo ? 1 + Math.min(Q.combo, 10) * 0.1 : 1;
+        pts = Math.round((base + tb) * cm);
+        det = '기본 ' + base + (tb ? ' · 시간 +' + tb : '') + (cm > 1 ? ' · 콤보 ×' + cm.toFixed(1) : '');
+        Q.combo++; Q.maxCombo = Math.max(Q.maxCombo, Q.combo); Q.ok++; st.o++;
+        if (QS.timeMode === 'total' && QS.bonus) { Q.totalLeft += QS.bonus * 1000; Q.totalMax = Math.max(Q.totalMax, Q.totalLeft); }
+        if (Q.combo % 5 === 0) showToast('🔥 ' + Q.combo + '연속 정답!');
+      } else {
+        Q.combo = 0; st.n++;
+        if (QS.lives) { Q.lives--; if (Q.lives <= 0) Q.over = 'lives'; }
+        if (QS.timeMode === 'total' && QS.penalty) { Q.totalLeft -= QS.penalty * 1000; if (Q.totalLeft <= 0) Q.over = 'time'; }
+        if (QS.requeue && !Q.reqd.has(q.w.id)) { Q.reqd.add(q.w.id); Q.list.push(q.w); }
+      }
+      Q.score += pts;
+      Q.res.push({ w: q.w, ok, given, pts });
+      qSave(QSTAT, Q.stat);
+      const sg = qe('qStage'); sg.classList.remove('shake'); sg.classList.add(ok ? 'good' : 'bad');
+      qe('qInput').readOnly = true; qe('qAct').classList.add('hidden'); qe('qMsg').textContent = '';
+      qSnd(ok ? 'ok' : 'bad');
+      if (ok) { const p = document.createElement('div'); p.className = 'qpop'; p.textContent = '+' + pts; sg.appendChild(p); setTimeout(() => p.remove(), 900); }
+      qFb(ok, given, why, pts, det);
+      qHud();
+      if (ok) { const c = qe('qCombo'); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop'); }
+      if (ok && QS.autoNext > 0) { const at = Q.fbAt; setTimeout(() => { if (Q.phase === 'fb' && Q.fbAt === at) qNext(); }, QS.autoNext * 1000); }
+    }
+    function qFull(w) {
+      return w.category === '공수' ? chainHtml(w.word, true)
+        : w.category === '미션' ? '<span class="qfull">' + highlightWord(w.word, parseConditions(w.condition)) + '</span>'
+        : '<span class="qfull">' + escapeHtml(w.word) + '</span>';
+    }
+    function qFb(ok, given, why, pts, det) {
+      const q = Q.q, last = Q.over || Q.i + 1 >= Q.list.length;
+      const t = ok ? '✅ 정답!' : why === 'time' ? '⏰ 시간 초과' : why === 'pass' ? '⏭ 패스' : '❌ 오답';
+      let h = '<div class="qfbh">' + t + (ok ? ' <span class="pts">+' + pts + '</span>' : '') + (!ok && given ? ' <span class="mine">내 답 <s>' + escapeHtml(given) + '</s></span>' : '') + '</div>';
+      if (ok && det) h += '<div class="qsub">' + det + '</div>';
+      if (!ok && q.type === 'chain') h += '<div class="qans">정답 ' + q.ans.map(a => '<b>' + escapeHtml(a) + '</b>').join(' / ') + '</div>';
+      h += qFull(q.w);
+      h += '<div class="qbtns"><button class="btn btn-light" onclick="qNext()">' + (last ? '결과 보기' : '다음') + ' ↵</button><button class="btn" onclick="copyToClipboard(' + jsAttr(q.w.word) + ')">복사</button></div>';
+      const f = qe('qFb'); f.className = 'qfb ' + (ok ? 'good' : 'bad'); f.innerHTML = h;
+    }
+
+    // ---------- HUD / 타이머 ----------
+    function qHud() {
+      const t = Q.list.length;
+      qe('qCnt').textContent = Math.min(Q.i + 1, t) + ' / ' + t;
+      qe('qProg').style.width = ((Q.i + (Q.phase === 'fb' ? 1 : 0)) / t * 100) + '%';
+      qe('qHeart').textContent = QS.lives ? '♥'.repeat(Math.max(0, Q.lives)) + '♡'.repeat(Math.max(0, QS.lives - Q.lives)) : '';
+      qe('qScore').textContent = Q.score.toLocaleString();
+      const c = qe('qCombo'); c.textContent = '🔥 ' + Q.combo + ' COMBO'; c.classList.toggle('hidden', !QS.combo || Q.combo < 2);
+    }
+    function qTimerRender() {
+      const bar = qe('qTimeBar'), txt = qe('qTimeTxt'), box = qe('qTimeBox');
+      box.classList.toggle('inf', QS.timeMode === 'none');
+      if (QS.timeMode === 'none') { bar.style.width = '100%'; bar.className = ''; txt.textContent = '∞ 시간 무제한'; return; }
+      const per = QS.timeMode === 'per', left = Math.max(0, per ? Q.remain : Q.totalLeft), lim = per ? QS.perQ * 1000 : Q.totalMax;
+      const pct = left / lim * 100;
+      bar.style.width = pct + '%'; bar.className = pct < 25 ? 'low' : pct < 50 ? 'mid' : '';
+      txt.textContent = per ? (left / 1000).toFixed(1) + '초' : '남은 시간 ' + qFmt(Math.ceil(left / 1000));
+    }
+    setInterval(() => {
+      if (!Q.run || Q.phase !== 'q' || !qe('content-quiz').classList.contains('is-active')) { Q.last = Date.now(); return; }
+      const now = Date.now(), dt = now - Q.last; Q.last = now;
+      if (QS.timeMode === 'per') { Q.remain -= dt; if (Q.remain <= 0) { qOutcome(false, qe('qInput').value, 'time'); return; } }
+      else if (QS.timeMode === 'total') { Q.totalLeft -= dt; if (Q.totalLeft <= 0) { qEnd('time'); return; } }
+      qTimerRender();
+    }, 100);
+
+    // ---------- 결과 ----------
+    function qEnd(why) {
+      if (Q.phase === 'end') return;
+      Q.run = false; Q.phase = 'end';
+      const n = Q.res.length;
+      if (!n) { qShow('setup'); renderSetup(); return; }
+      const acc = Math.round(Q.ok / n * 100), el = Math.round((Date.now() - Q.t0) / 1000);
+      const last = new Map(); Q.res.forEach(r => last.set(r.w.id, r));
+      const fin = [...last.values()], wrong = fin.filter(r => !r.ok);
+      QR = { wrong: wrong.map(r => r.w), okIds: fin.filter(r => r.ok).map(r => r.w.id) };
+      const g = n < 3 ? '-' : acc >= 95 ? 'S' : acc >= 85 ? 'A' : acc >= 70 ? 'B' : acc >= 50 ? 'C' : 'D';
+      const best = qLoad(QBEST, 0), rec = Q.score > best; if (rec) qSave(QBEST, Q.score);
+      const msg = { clear: '모든 문제를 풀었어요!', lives: '하트를 모두 잃었어요…', time: '시간 종료!', quit: '여기까지 풀었어요.' }[why] || '';
+      qSnd('fin');
+      qe('qResult').innerHTML =
+        '<div class="rhead"><div class="rgrade g-' + g + '">' + g + '</div><div><h2>' + msg + '</h2><p class="sub">' + (rec ? '🏆 새 최고 점수!' : '최고 점수 ' + best.toLocaleString()) + '</p></div></div>' +
+        '<div class="rstats"><div><small>점수</small><b>' + Q.score.toLocaleString() + '</b></div><div><small>정답률</small><b>' + acc + '%</b></div><div><small>맞춘 문제</small><b>' + Q.ok + '/' + n + '</b></div><div><small>최대 콤보</small><b>' + Q.maxCombo + '</b></div><div><small>걸린 시간</small><b>' + qFmt(el) + '</b></div></div>' +
+        '<div class="qbtns" style="justify-content:flex-start;margin:0 0 18px"><button class="btn btn-light" onclick="qStart()">↻ 다시 하기</button>' +
+        (wrong.length ? '<button class="btn" onclick="qStart(QR.wrong)">틀린 ' + wrong.length + '개만 다시</button>' : '') +
+        (QR.okIds.length ? '<button class="btn btn-ok" onclick="qMemo()">맞춘 단어 암기 체크</button>' : '') +
+        '<button class="btn" onclick="qShow(\'setup\');renderSetup()">⚙ 설정으로</button></div>' +
+        (wrong.length ? '<h2 style="font-size:15px;margin-bottom:8px">다시 볼 단어 ' + wrong.length + '개</h2><div class="table-wrap">' + wrong.map(r => '<div class="rrow"><span class="chip ' + getCategoryColorClass(r.w.category) + '">' + escapeHtml(r.w.category) + '</span>' + qFull(r.w).replace('qfull', 'qfull" style="font-size:16px') + (r.given ? '<span class="mine">내 답 ' + escapeHtml(r.given) + '</span>' : '') + '</div>').join('') + '</div>' : '<p class="empty">전부 맞혔어요! 👏</p>');
+      qShow('result');
+    }
+    async function qMemo() {
+      if (!requireWritable()) return;
+      const ids = QR.okIds.filter(id => { const w = words.find(x => x.id === id); return w && !w.memorized; });
+      if (!ids.length) { showToast('새로 체크할 단어가 없어요.'); return; }
+      try {
+        const b = db.batch(); ids.forEach(id => b.update(col.doc(id), { memorized: true })); await b.commit();
+        showToast(ids.length + '개를 암기 완료로 표시했어요!');
+      } catch (err) { dbError(err); }
     }
 
     init();
