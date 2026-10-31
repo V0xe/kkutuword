@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>KKUKO 단어 암기장</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1016;
+      --surface: #151822;
+      --surface-2: #1a1d29;
+      --line: #272b38;
+      --line-soft: #1e222e;
+      --ink: #e8eaf0;
+      --muted: #8a90a2;
+      --faint: #4f5568;
+      --memo: #12231a;
+      --radius: 6px;
+      --font: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+      --mono: 'IBM Plex Mono', 'D2Coding', Consolas, 'Malgun Gothic', monospace;
+    }
+    .cat-장문 { --c: #60a5fa; }
+    .cat-공수 { --c: #a78bfa; }
+    .cat-미션 { --c: #fbbf24; }
+    .cat-예능 { --c: #fb7185; }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.6; }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    h1, h2, p { margin: 0; }
+    .hidden { display: none !important; }
+    :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- 헤더 ---------- */
+    .head { border-bottom: 1px solid var(--line-soft); flex: none; }
+    .head .wrap { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 20px; }
+    .title { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #6b7185; flex: none; }
+    .sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+    .btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--radius); padding: 7px 14px; font-weight: 500; font-size: 13px; transition: background .15s, border-color .15s; }
+    .btn:hover { background: #232738; border-color: #3a3f52; }
+    .btn-light { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 700; font-family: var(--mono); }
+    .btn-light:hover { background: #fff; border-color: #fff; }
+
+    /* ---------- 탭 ---------- */
+    .tabbar { flex: none; padding-top: 22px; }
+    .tabbar .wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tab { height: 38px; padding: 0 20px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); font-weight: 700; font-size: 13px; transition: background .15s, border-color .15s; }
+    .tab:hover { border-color: #3a3f52; background: #202436; }
+    .tab.is-active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+    .tab-tree { margin-left: auto; }
+
+    /* ---------- 본문 ---------- */
+    .views { flex: 1; min-height: 0; position: relative; overflow-y: auto; }
+    .view { display: none; }
+    .view.is-active { display: block; }
+    #content-canvas.is-active { display: flex; flex-direction: column; height: 100%; padding-top: 16px; padding-bottom: 24px; gap: 12px; }
+    #content-list .wrap { padding-top: 20px; padding-bottom: 56px; }
+
+    .search { width: 100%; height: 52px; padding: 0 18px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+    .search::placeholder, .field::placeholder { color: var(--faint); }
+    .search:focus, .field:focus { outline: none; border-color: #5a6178; }
+    .options { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 14px 0 16px; }
+    .field { height: 36px; padding: 0 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
+    .check { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; user-select: none; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: #a8b0c8; }
+    .count { margin-left: auto; color: var(--muted); font-size: 12px; font-family: var(--mono); }
+
+    .table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 11px 16px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: #1a1e2b; }
+    tr.is-memo td { background: var(--memo); }
+    tr.is-memo .cell-word { color: var(--muted); text-decoration: line-through; text-decoration-color: #4d6b58; }
+    .cell-word { font-size: 15px; font-weight: 500; word-break: break-all; min-width: 200px; }
+    .num { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+    .empty { text-align: center; padding: 56px 0; color: var(--muted); }
+
+    .chip { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 35%, var(--surface)); }
+    .badge { display: inline-block; padding: 0 8px; margin-right: 4px; border-radius: 4px; font-family: var(--mono); font-size: 12px; font-weight: 700; background: #3a2e0a; color: #fbbf24; border: 1px solid #5c4710; }
+
+    /* ---------- 캔버스 ---------- */
+    .canvas-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+    .canvas-bar h2 { font-size: 16px; font-weight: 700; }
+    .canvas-bar p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .canvas-tools { display: flex; gap: 8px; }
+    #canvas-viewport { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab; touch-action: none; background-color: var(--surface); background-image: radial-gradient(#262b3a 1px, transparent 1px); background-size: 22px 22px; border: 1px solid var(--line); border-radius: var(--radius); }
+    #canvas-viewport:active { cursor: grabbing; }
+    #mainCanvas { position: absolute; inset: 0; display: block; }
+
+    /* ---------- 카테고리 안내 / 미션 글자 ---------- */
+    .cat-note { color: var(--muted); font-size: 13px; margin: 0 0 14px; line-height: 1.7; }
+    .cat-note b { color: var(--ink); font-weight: 700; }
+    .cat-note u { text-decoration-color: #c4b5fd; text-underline-offset: 3px; }
+    .cat-note .k-atk { color: #fb7185; }
+    .cat-note .k-def { color: #a78bfa; }
+    .cat-note .k-hl { color: #fbbf24; }
+    .letters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+    .letter { min-width: 46px; height: 34px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); font-weight: 700; font-size: 14px; }
+    .letter:hover { border-color: #3a3f52; }
+    .letter small { margin-left: 5px; color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+    .letter.is-empty { opacity: .45; }
+    .letter.is-active { background: #fbbf24; border-color: #fbbf24; color: #0e1016; }
+    .letter.is-active small { color: #5c4710; }
+    .hl-0 { --h: #fbbf24; } .hl-1 { --h: #34d399; } .hl-2 { --h: #60a5fa; }
+    mark.hl { background: color-mix(in srgb, var(--h) 24%, transparent); color: var(--h); font-weight: 700; padding: 0 1px; border-radius: 3px; box-shadow: inset 0 -2px 0 var(--h); }
+    .mbadge { display: inline-flex; align-items: baseline; gap: 4px; padding: 1px 9px; margin: 2px 4px 2px 0; border-radius: 6px; font-weight: 700; font-size: 14px; color: var(--h); background: color-mix(in srgb, var(--h) 14%, transparent); border: 1px solid color-mix(in srgb, var(--h) 45%, transparent); }
+    .mbadge small { font-family: var(--mono); font-size: 11px; }
+    .mbadge.bad { --h: #f87171; }
+
+    /* ---------- 공수: 공격 → 수비 ---------- */
+    .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .alt { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    .alt.atk { --t: #fb7185; } .alt.def { --t: #a78bfa; } .alt.solo { --t: #8a90a2; }
+    .tok { padding: 2px 10px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--ink); background: color-mix(in srgb, var(--t) 12%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--t) 45%, var(--line)); }
+    .tok:hover { border-color: var(--t); }
+    .tok b { color: var(--t); text-decoration: underline; text-underline-offset: 3px; }
+    .arrow, .slash { color: var(--faint); font-family: var(--mono); }
+
+    /* ---------- 장문: 글자 수 ---------- */
+    .len { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+    .lenbar { width: 84px; height: 4px; margin-top: 5px; border-radius: 2px; background: var(--line); }
+    .lenbar i { display: block; height: 100%; border-radius: 2px; background: #60a5fa; }
+
+    /* ---------- 캔버스 범례 / 모달 힌트 ---------- */
+    .canvas-tools { align-items: center; }
+    .legend { display: flex; gap: 12px; margin-right: 6px; color: var(--muted); font-size: 12px; }
+    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; background: var(--r); }
+    .r-atk { --r: #fb7185; } .r-def { --r: #a78bfa; } .r-solo { --r: #8a90a2; }
+    .hint { margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+    .hint.ok { color: #34d399; } .hint.warn { color: #fbbf24; }
+    .ext-preview { padding: 12px; min-height: 52px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
+    .ext-preview .tok { cursor: default; }
+
+    /* ---------- DB 상태 / 작업 버튼 ---------- */
+    .head-right { display: flex; align-items: center; gap: 14px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #6b7185; }
+    .status[data-state="online"]::before { background: #34d399; }
+    .status[data-state="error"]::before, .status[data-state="denied"]::before { background: #f87171; }
+    .status[data-state="connecting"]::before { background: #fbbf24; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-danger:hover { color: #f87171; border-color: #7f2d2d; }
+    .banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--muted); }
+    .banner b { color: var(--ink); }
+
+    /* ---------- 수정 모달 ---------- */
+    .modal-panel { max-height: calc(100vh - 32px); overflow-y: auto; }
+    .modal-wide { max-width: 560px; }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .icon-btn { width: 30px; height: 30px; padding: 0; line-height: 1; }
+    .step { margin-bottom: 10px; padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-left: 4px solid var(--t); border-radius: var(--radius); }
+    .step.atk { --t: #fb7185; } .step.def { --t: #a78bfa; } .step.solo { --t: #8a90a2; }
+    .step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .step-no { font-size: 12px; font-weight: 700; color: var(--t); }
+    .step-tools { display: flex; gap: 4px; }
+    .tokrow { display: flex; gap: 6px; margin-bottom: 6px; }
+    .tokrow .field { flex: 1; height: 36px; }
+    #chainWarn { margin: 10px 0 0; line-height: 1.6; }
+
+    /* ---------- 모달 ---------- */
+    .modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(5, 6, 10, .72); }
+    .modal-panel { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 24px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+    .modal-panel h2 { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+    .modal-panel .sub { margin: 2px 0 18px; }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .form-row .field { width: 100%; height: 40px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    /* ---------- 토스트 ---------- */
+    #toast-container { position: fixed; right: 20px; bottom: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+    .toast { background: var(--ink); color: var(--bg); font-weight: 700; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); opacity: 0; transform: translateY(12px); transition: opacity .25s, transform .25s; }
+    .toast.show { opacity: 1; transform: none; }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #2a2f3e; border-radius: 6px; }
+
+    @media (max-width: 720px) {
+      .wrap { padding: 0 14px; }
+      .head .wrap { padding-top: 16px; padding-bottom: 14px; }
+      .title { font-size: 18px; }
+      .tab { padding: 0 14px; }
+      .tab-tree { margin-left: 0; }
+      .count { margin-left: 0; width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <header class="head">
+    <div class="wrap">
+      <div>
+        <h1 class="title"><span class="dot"></span>KKUKO 단어 암기장</h1>
+        <p class="sub">아직 안 외운 단어들을 모아보는 메모</p>
+      </div>
+      <div class="head-right">
+        <span class="status" id="dbStatus" data-state="connecting">DB 연결 중…</span>
+        <button class="btn btn-light" onclick="openAddModal()">+ 단어 추가</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabbar" aria-label="카테고리">
+    <div class="wrap">
+      <button class="tab is-active" id="tab-all" onclick="setCategory('all')">전체</button>
+      <button class="tab" id="tab-장문" onclick="setCategory('장문')">장문</button>
+      <button class="tab" id="tab-공수" onclick="setCategory('공수')">공수</button>
+      <button class="tab" id="tab-미션" onclick="setCategory('미션')">미션</button>
+      <button class="tab" id="tab-예능" onclick="setCategory('예능')">예능</button>
+      <button class="tab tab-tree" id="tab-tree" onclick="showTree()">공수 마인드맵</button>
+    </div>
+  </nav>
+
+  <div class="views">
+    <!-- 단어 목록 -->
+    <main id="content-list" class="view is-active">
+      <div class="wrap">
+        <div id="seedBanner" class="banner hidden"><div><b>DB가 비어 있어요.</b> 이 파일에 들어 있는 기본 단어 <span id="seedCount"></span>개를 Firestore에 올릴 수 있어요.</div><button class="btn btn-light" onclick="uploadSeed()">기본 단어 올리기</button></div>
+        <p class="cat-note" id="catNote"></p>
+        <input type="text" id="searchInput" class="search" placeholder="단어를 입력하면 즉시 필터링됩니다..." oninput="renderWordList()">
+        <div class="options">
+          <select id="sortMode" class="field" onchange="renderWordList()">
+            <option value="input">입력순</option>
+            <option value="len">글자 수 많은 순</option>
+          </select>
+          <input type="number" id="lengthFilter" class="field" style="width:130px" min="0" placeholder="글자 수 이상" oninput="renderWordList()">
+          <label class="check"><input type="checkbox" id="unmemorizedOnly" onchange="renderWordList()">미암기만 보기</label>
+          <span class="count" id="listCount"></span>
+        </div>
+        <div id="letterBar" class="letters hidden"></div>
+        <div id="listEmpty" class="empty hidden">조건에 맞는 단어가 없어요.</div>
+        <div class="table-wrap" id="listTableContainer">
+          <table>
+            <thead><tr><th>암기</th><th>단어</th><th>카테고리</th><th>글자 수</th><th>조건</th><th>작업</th></tr></thead>
+            <tbody id="wordTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- 공수 트리 -->
+    <main id="content-canvas" class="view wrap">
+      <div class="canvas-bar">
+        <div>
+          <h2>공수 마인드맵</h2>
+          <p>단어에 마우스를 올리면 이어지는 단어만 강조, ＋ 로 이어서 추가 · 휠로 확대/축소 · 빈 곳을 끌어 이동 · 클릭하면 복사</p>
+        </div>
+        <div class="canvas-tools">
+          <div class="legend"><span class="r-atk">공격</span><span class="r-def">수비</span><span class="r-solo">단독</span></div>
+          <button class="btn" onclick="resetCanvas()">레이아웃 초기화</button>
+          <button class="btn" onclick="clearEdges()">간선 초기화</button>
+        </div>
+      </div>
+      <div id="canvas-viewport"
+           onmousedown="onCanvasMouseDown(event)"
+           onmousemove="onCanvasMouseMove(event)"
+           onmouseup="onCanvasMouseUp(event)"
+           onmouseleave="onCanvasMouseLeave(event)"
+           onwheel="onCanvasWheel(event)">
+        <canvas id="mainCanvas"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <!-- 단어 추가 모달 -->
+  <div id="addModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="if(event.target===this)closeAddModal()">
+    <div class="modal-panel">
+      <h2 id="modal-title">단어 추가</h2>
+      <p class="sub" id="addSub">새 단어를 단어장에 추가하세요.</p>
+      <form id="addWordForm" onsubmit="handleAddWord(event)">
+        <div class="form-row">
+          <label for="newWord">단어</label>
+          <input type="text" id="newWord" class="field" required placeholder="단어를 입력하세요">
+          <p class="hint" id="wordHint"></p>
+        </div>
+        <div class="form-row">
+          <label for="newCategory">카테고리</label>
+          <select id="newCategory" class="field" onchange="toggleMissionCondition()">
+            <option value="장문">장문</option>
+            <option value="공수">공수</option>
+            <option value="미션">미션</option>
+            <option value="예능">예능</option>
+          </select>
+        </div>
+        <div class="form-row hidden" id="missionConditionField">
+          <label for="newCondition">미션 조건 (예: 타2, 아4, 가8)</label>
+          <input type="text" id="newCondition" class="field" placeholder="조건 입력">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeAddModal()">취소</button>
+          <button type="submit" class="btn btn-light" id="addSubmit">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 이어서 추가 모달 -->
+  <div id="extendModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ext-title" onclick="if(event.target===this)closeExtendModal()">
+    <div class="modal-panel">
+      <h2 id="ext-title">이어서 추가</h2>
+      <p class="sub">원래 있던 단어 세트 뒤에 단어를 더 이어요.</p>
+      <form onsubmit="handleExtend(event)">
+        <div class="form-row">
+          <label for="extBase">어떤 단어 뒤에 이을까요?</label>
+          <select id="extBase" class="field" onchange="updateExtendPreview()"></select>
+        </div>
+        <div class="form-row">
+          <label for="extText">이을 단어</label>
+          <input type="text" id="extText" class="field" required autocomplete="off" placeholder="이을 단어를 입력하세요 (여러 개는 / 로 구분)" oninput="updateExtendPreview()">
+          <p class="hint" id="extLink"></p>
+        </div>
+        <div class="form-row">
+          <label>미리보기</label>
+          <div id="extPreview" class="ext-preview"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeExtendModal()">취소</button>
+          <button type="submit" class="btn btn-light">이어 추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 공수 세트 수정 모달 -->
+  <div id="chainModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="chain-title" onclick="if(event.target===this)closeChainEditor()">
+    <div class="modal-panel modal-wide">
+      <h2 id="chain-title">단어 세트 수정</h2>
+      <p class="sub">단계별로 단어를 고치고, 선택지나 단계를 더하거나 뺄 수 있어요. 첫 단계가 공격, 이후가 수비예요.</p>
+      <form onsubmit="handleChainSave(event)">
+        <div id="chainSteps"></div>
+        <button type="button" class="btn" onclick="addChainStep()">＋ 단계 추가</button>
+        <div class="form-row" style="margin-top:16px">
+          <label>미리보기</label>
+          <div id="chainPreview" class="ext-preview"></div>
+          <p class="hint" id="chainWarn"></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeChainEditor()">취소</button>
+          <button type="submit" class="btn btn-light">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // =========================================================================
+    // SEED DATA (DB가 비어 있을 때 '기본 단어 올리기'로 업로드하는 초기 데이터)
+    // =========================================================================
+    const wordsData = [
+      { category: "장문", word: "구름맛쿠키의무지개사탕조각" },
+      { category: "장문", word: "닥터이치노세는언제나엑스엑스를찌른다" },
+      { category: "장문", word: "털털한요리사의블룸샤인엑스트라" },
+      { category: "장문", word: "코믹옆집천사님때문에어느샌가인간적으로타락한사연" },
+      { category: "장문", word: "감방에서남자주인공을만났습니다" },
+      { category: "장문", word: "과거로되돌아온악역영애는왕자님으로부터도망치려합니다" },
+      { category: "장문", word: "수상한요거트사막마을스티커팩" },
+      { category: "장문", word: "팩맨앤더고스트리어드벤쳐" },
+      { category: "장문", word: "코코아맛쿠키의마시멜로모자" },
+      { category: "장문", word: "습기에강한몬드풍멘션" },
+      { category: "장문", word: "프레스티지트루데미지야스오" },
+      { category: "장문", word: "굿모닝한경글로벌마켓" },
+
+      { category: "공수", word: "브릭멘션" },
+      { category: "공수", word: "부엌것" },
+      { category: "공수", word: "인산마그네슘" },
+      { category: "공수", word: "신안컨트리클럽" },
+      { category: "공수", word: "내트웨스트그룹" },
+      { category: "공수", word: "감옥의신다이안켓" },
+      { category: "공수", word: "비틀이윷" },
+      { category: "공수", word: "닻혀 혀어어어업상/혀모양꽃갓" },
+      { category: "공수", word: "치즈오믈렛" },
+      { category: "공수", word: "이산화타이타늄" },
+      { category: "공수", word: "육손의조셉 셉테트리온" },
+      { category: "공수", word: "나우이즈굿/지노귀굿/넋풀이굿/장수거리굿" },
+      { category: "공수", word: "굿거리굿 굿즈이즈굿 굿띵 띵크어밧츄" },
+      { category: "공수", word: "히든밸리골프클럽" },
+      { category: "공수", word: "작은씨앗큰나눔 눔바니" },
+      { category: "공수", word: "잇샅 샅짬 짬뽕왕뚜껑/짬버럭" },
+      { category: "공수", word: "귿없이" },
+      { category: "공수", word: "사뭇 뭇매듭새 새롭 롭티슈라이어" },
+      { category: "공수", word: "건담에볼루션" },
+      { category: "공수", word: "듬칫듬칫" },
+      { category: "공수", word: "자갈왓 왓어라이프" },
+      { category: "공수", word: "복숭아즙" },
+      { category: "공수", word: "형제주인어멈 멈춤대" },
+      { category: "공수", word: "괴물오믈렛" },
+      { category: "공수", word: "단지유령일뿐" },
+      { category: "공수", word: "인기강사보영과함께하는영어만화피터팬" },
+      { category: "공수", word: "기동요새의배스큘 큘랙스모기" },
+      { category: "공수", word: "노좆 좆심 심판뽈 뽈대 대런섄 섄티타운" },
+      { category: "공수", word: "임금인플레이션" },
+      { category: "공수", word: "과수원맵 맵탱마늘조개라면컵" },
+      { category: "공수", word: "무사쉔/지옥의쉔 쉔지전통제지술 술렁술렁" },
+      { category: "공수", word: "이영뜸 뜸직" },
+      { category: "공수", word: "방긋방긋" },
+      { category: "공수", word: "집뽐" },
+      { category: "공수", word: "이솝 솝우틔 픔눈 픔거불" },
+      { category: "공수", word: "스승구옌 옌젠" },
+      { category: "공수", word: "치커리브루블랙 랙잭 잭블랙 랙칠" },
+      { category: "공수", word: "엇뎨 감뎨 뎨일/뎨깁" },
+      { category: "공수", word: "낭디꿰" },
+      { category: "공수", word: "신긔젼" },
+      { category: "공수", word: "디졍 졍듀 듀엣 엣지카니발" },
+      { category: "공수", word: "듬뿍덧뿍 뿍굼새 새껴 껴녹음" },
+      { category: "공수", word: "미뜽 뜽끌 끌밑" },
+      { category: "공수", word: "뇌천후터멜 멜낀 낀타불" },
+      { category: "공수", word: "기동총격여신미스포츈 츈혀 혀눙" },
+      { category: "공수", word: "핀틱 틱틱붐 붐팡 팡팡 팡팡팡 팡팡샷 샷건킹" },
+      { category: "공수", word: "로니쳉 쳉겅쳉겅 겅성드뭇 뭇딘" },
+      { category: "공수", word: "줄잡이꾼" },
+      { category: "공수", word: "음죵 죵시히 히물쩍" },
+      { category: "공수", word: "워크숍 숍제 제라툴 툴러덩툴러덩" },
+      { category: "공수", word: "굴근외얏 얏새" },
+      { category: "공수", word: "마스터핥 핥아먹어요" },
+      { category: "공수", word: "강퍅 오퍅 퍅성" },
+      { category: "공수", word: "둥띨 띨짱구" },
+      { category: "공수", word: "곳않 않아" },
+      { category: "공수", word: "아이스펍 펍의호사가" },
+      { category: "공수", word: "럭셔리레드카펫 펫어펫 펫포션" },
+      { category: "공수", word: "도태의현자다뷘" },
+      { category: "공수", word: "기아품삯" },
+      { category: "공수", word: "타이얌뭄" },
+      { category: "공수", word: "나이트스윔 씸지 지빰 밨짝" },
+      { category: "공수", word: "이트뎀 뎀뿌라" },
+      { category: "공수", word: "암돝" },
+      { category: "공수", word: "장훈이장쐬 쐬기컬" },
+      { category: "공수", word: "록용토니큼" },
+      { category: "공수", word: "우대몫 몫일 일즛" },
+      { category: "공수", word: "일긋일긋 긋기뱃바닥" },
+      { category: "공수", word: "부픗부픗 헛소옴 옴마니밧메훔 훔쳐" },
+      { category: "공수", word: "음휼 휼궤 궤휼 휼형 형제주인어멈 멈짓 짓않" },
+      { category: "공수", word: "위않 할많하않 곳않 짓않" },
+      { category: "공수", word: "아름다운사랑아름다운나눔 아쑈 쑈리" },
+      { category: "공수", word: "이십세기힛트쏭" },
+      { category: "공수", word: "벳꽂 꽂을대" }
+    ];
+
+    wordsData.push(
+      { category: "미션", word: "이부스타플라스타", condition: "타2" },
+      { category: "미션", word: "사아아아아슴시뮬레이터", condition: "아4" },
+      { category: "미션", word: "가가가가가가가가", condition: "가8" },
+      { category: "미션", word: "아파도아파도", condition: "아2 파2" },
+      { category: "미션", word: "이러나저러나", condition: "나2" },
+      { category: "미션", word: "기도하고일하라", condition: "하2" },
+      { category: "미션", word: "키미나내리막기미안나", condition: "나2" },
+      { category: "미션", word: "이른아침달리자둘이함께달리자", condition: "자2" },
+      { category: "미션", word: "이웃집프로파일러하이다의사건파일2추적해커의시그니처", condition: "파2" },
+      { category: "미션", word: "이글이글마그마마운틴", condition: "마3" },
+      { category: "미션", word: "기아기아기아크로스기간토", condition: "아3" },
+      { category: "미션", word: "기아기아기아", condition: "아3" },
+      { category: "미션", word: "기가가가기고", condition: "가3" },
+      { category: "미션", word: "기다리다지친다", condition: "다3" },
+      { category: "미션", word: "기타기타사건부", condition: "타2" },
+      { category: "미션", word: "이토록친절한문학교과서작품읽기고대가요향가고려가요편", condition: "가3" },
+      { category: "미션", word: "나태가가져온선물", condition: "가2" },
+      { category: "미션", word: "기신알리바바", condition: "바2" },
+      { category: "미션", word: "다함께차차차", condition: "차3" },
+      { category: "미션", word: "이서진의달라달라", condition: "라2" },
+      { category: "미션", word: "이상한바삭바삭스테이크", condition: "바2" },
+      { category: "미션", word: "이상한사모사", condition: "사2" },
+      { category: "미션", word: "이세계에서돌아온아저씨가부성스킬로파더콤아가씨들을헤롱헤롱", condition: "아3" },
+      { category: "미션", word: "이터널아리아", condition: "아2" },
+      { category: "미션", word: "이십오시아카사카에서", condition: "카2" },
+      { category: "미션", word: "이즈파파", condition: "파2" },
+
+      { category: "예능", word: "가상섹스" },
+      { category: "예능", word: "히틀러의딸" },
+      { category: "예능", word: "기름뺀젖" },
+      { category: "예능", word: "개같은아빠" },
+      { category: "예능", word: "자궁목찢김" },
+      { category: "예능", word: "김정은의초콜릿" },
+      { category: "예능", word: "아가씨발끈하다" },
+      { category: "예능", word: "드럼통속에있는것" },
+      { category: "예능", word: "발기발기" },
+      { category: "예능", word: "임신중절수술" },
+      { category: "예능", word: "강도강간죄" },
+      { category: "예능", word: "마누라죽이기" },
+      { category: "예능", word: "학대성욕도착증" },
+      { category: "예능", word: "도깨비를빨아버린우리엄마" },
+      { category: "예능", word: "오줌멀리싸기시합" },
+      { category: "예능", word: "언니와여동생속옷사정" },
+      { category: "예능", word: "고양이엉덩이를좋아합니다" },
+      { category: "예능", word: "나체사진" },
+      { category: "예능", word: "보뎅이" },
+      { category: "예능", word: "타인의섹스를비웃지마라" },
+      { category: "예능", word: "양자지 부자지" }
+    );
+
+    // =========================================================================
+    // STATE
+    // =========================================================================
+    let words = [];            // Firestore 에서 실시간으로 채워짐: { id, category, word, condition?, memorized?, order }
+    let dbLoading = true;
+    let readOnly = true;       // DB 연결 전/실패 시 저장 불가
+    let col = null;            // Firestore 'words' 컬렉션
+    let chainSig = null;       // 공수 단어가 바뀐 때만 마인드맵을 다시 그리기 위한 서명
+    let currentCat = 'all';
+    let currentLetter = null;
+    let treeLaidOut = false;
+
+    // Canvas state
+    let canvasNodes = [];
+    let canvasEdges = [];
+    let nodeMap = new Map();
+    let hoverId = null;
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    let dragStartOffsetX = 0, dragStartOffsetY = 0;
+
+    let isConnecting = false;
+    let connectSourceId = null;
+    let connectStartX = 0, connectStartY = 0;
+
+    const CLICK_THRESHOLD = 5;
+    const NODE_H = 34;
+    const PLUS_R = 10;
+    const MISSION_LETTERS = '가나다라마바사아자차카타파하'.split('');
+    const ROLE_COLORS = { attack: '#fb7185', defense: '#a78bfa', solo: '#8a90a2' };
+
+    const CAT_NOTES = {
+      all: '모든 단어를 모아 봐요. 외운 단어는 왼쪽 체크박스로 표시하세요.',
+      '장문': '길이가 긴 단어예요. 길게 받아칠수록 점수를 더 받아요. <b>글자 수 많은 순</b>으로 정렬돼 있어요.',
+      '공수': '잇기 어려운 <b class="k-atk">공격 단어</b>와 그걸 받아치는 <b class="k-def">수비 단어</b>예요. <b>→</b> 는 이어지는 순서, <b>/</b> 는 같은 자리에서 고를 수 있는 단어, <u>밑줄 글자</u>는 서로 이어지는 글자예요. 단어를 누르면 복사되고, <b>＋ 이어 추가</b>로 원래 있던 세트 뒤에 단어를 더 이을 수 있어요.',
+      '미션': '화면 구석의 미션 글자(가나다라마바사아자차카타파하)가 많이 들어갈수록 점수를 더 받아요. <b class="k-hl">색으로 강조된 글자</b>가 미션 글자예요. 위의 글자 버튼으로 골라 볼 수 있어요.',
+      '예능': '상대를 제압하려는 단어가 아니라, 웃기려고 쓰는 단어들이에요.'
+    };
+
+    // =========================================================================
+    // UTILITIES
+    // =========================================================================
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = msg;
+      container.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 300);
+      }, 2200);
+    }
+
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+      showToast('클립보드에 복사되었습니다!');
+    }
+
+    // inline onclick 에 넣을 문자열 안전 처리
+    function jsAttr(text) {
+      // onclick="..." 안에서 안전하도록 JSON 문자열을 HTML 속성용으로 이스케이프
+      return JSON.stringify(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function getCategoryColorClass(cat) {
+      return 'cat-' + cat;
+    }
+
+    // 공수 표기: 공백 = 다음 단계, '/' = 같은 단계의 선택지
+    function parseChain(word) {
+      return word.trim().split(/\s+/)
+        .map(g => g.split('/').map(s => s.trim()).filter(Boolean))
+        .filter(g => g.length);
+    }
+
+    function charLen(word) {
+      return [...word.replace(/[\s\/]/g, '')].length;
+    }
+
+    // 미션 조건: "아2 파2" -> [{ch:'아', n:2}, {ch:'파', n:2}]
+    function parseConditions(str) {
+      return (str || '').split(/\s+/).filter(Boolean).map(t => {
+        const m = t.match(/^(\D)(\d*)$/u);
+        return m ? { ch: m[1], n: parseInt(m[2], 10) || 1 } : { ch: t, n: 1 };
+      });
+    }
+
+    function attrEsc(t) {
+      return escapeHtml(t).replace(/"/g, '&quot;');
+    }
+
+    function countChar(word, ch) {
+      return [...word].filter(c => c === ch).length;
+    }
+
+    // 미션 글자만 색으로 강조
+    function highlightWord(word, conds) {
+      const idx = new Map(conds.map((c, i) => [c.ch, i]));
+      return [...word].map(ch => idx.has(ch)
+        ? '<mark class="hl hl-' + (idx.get(ch) % 3) + '">' + escapeHtml(ch) + '</mark>'
+        : escapeHtml(ch)).join('');
+    }
+
+    function conditionBadges(word, conds) {
+      return conds.map((c, i) => {
+        const real = countChar(word, c.ch);
+        const ok = real >= c.n;
+        return '<span class="mbadge hl-' + (i % 3) + (ok ? '' : ' bad') + '">' + escapeHtml(c.ch) +
+          ' <small>×' + c.n + (ok ? '' : ' · 실제 ' + real) + '</small></span>';
+      }).join('');
+    }
+
+    // 공수 한 줄을 "공격 → 수비" 형태로 표시
+    function chainHtml(word, plain) {
+      const groups = parseChain(word);
+      const multi = groups.length > 1;
+      return '<div class="chain">' + groups.map((g, gi) => {
+        const role = !multi ? 'solo' : (gi === 0 ? 'atk' : 'def');
+        const toks = g.map(tok => {
+          const chars = [...tok];
+          const html = chars.map((c, ci) => {
+            const link = (gi > 0 && ci === 0) || (gi < groups.length - 1 && ci === chars.length - 1);
+            return link ? '<b>' + escapeHtml(c) + '</b>' : escapeHtml(c);
+          }).join('');
+          return plain ? '<span class="tok">' + html + '</span>'
+            : '<button class="tok" onclick="copyToClipboard(' + jsAttr(tok) + ')" title="클릭하면 복사">' + html + '</button>';
+        }).join('<span class="slash">/</span>');
+        return '<span class="alt ' + role + '">' + toks + '</span>';
+      }).join('<span class="arrow">→</span>') + '</div>';
+    }
+
+    // =========================================================================
+    // TAB SWITCHING
+    // =========================================================================
+    function setActiveTab(id) {
+      document.querySelectorAll('.tab').forEach(el => el.classList.toggle('is-active', el.id === id));
+    }
+
+    function setView(view) {
+      document.querySelectorAll('.view').forEach(el => el.classList.remove('is-active'));
+      document.getElementById('content-' + view).classList.add('is-active');
+    }
+
+    function setCategory(cat) {
+      currentCat = cat;
+      currentLetter = null;
+      document.getElementById('sortMode').value = cat === '장문' ? 'len' : 'input';
+      document.getElementById('catNote').innerHTML = CAT_NOTES[cat] || '';
+      setActiveTab('tab-' + cat);
+      setView('list');
+      renderWordList();
+    }
+
+    function showTree() {
+      setActiveTab('tab-tree');
+      setView('canvas');
+      if (!treeLaidOut) layoutCanvasNodes();   // 숨겨진 상태에서 배치했다면 실제 폭으로 다시 배치
+      resizeCanvas();
+    }
+
+    // =========================================================================
+    // CANVAS ENGINE (공수 마인드맵)
+    // =========================================================================
+    function resizeCanvas() {
+      const viewport = document.getElementById('canvas-viewport');
+      const canvas = document.getElementById('mainCanvas');
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      if (w === 0 || h === 0) return;
+      canvas.width = w;
+      canvas.height = h;
+      renderCanvas();
+    }
+
+    function nodeFont(size) {
+      return '700 ' + size + 'px "IBM Plex Sans KR", "Malgun Gothic", sans-serif';
+    }
+
+    // 같은 단어는 하나의 노드로 합쳐서, 여러 줄에 걸친 연결이 한 마인드맵으로 이어지게 함
+    function buildCanvasGraph() {
+      canvasNodes = [];
+      canvasEdges = [];
+      nodeMap = new Map();
+      const byWord = new Map();
+      const edgeKeys = new Set();
+      const mctx = document.createElement('canvas').getContext('2d');
+      mctx.font = nodeFont(14);
+
+      function getNode(word) {
+        let n = byWord.get(word);
+        if (!n) {
+          n = { id: 'n' + canvasNodes.length, word, w: Math.max(54, Math.ceil(mctx.measureText(word).width) + 28), h: NODE_H, x: 0, y: 0, depth: 0, role: 'solo' };
+          byWord.set(word, n);
+          canvasNodes.push(n);
+          nodeMap.set(n.id, n);
+        }
+        return n;
+      }
+
+      words.filter(w => w.category === '공수').forEach(entry => {
+        const groups = parseChain(entry.word).map(g => g.map(getNode));
+        for (let i = 1; i < groups.length; i++) {
+          groups[i - 1].forEach(a => groups[i].forEach(b => {
+            const key = a.id + '>' + b.id;
+            if (a === b || edgeKeys.has(key)) return;
+            edgeKeys.add(key);
+            canvasEdges.push({ from: a.id, to: b.id, type: 'auto' });
+          }));
+        }
+      });
+
+      const indeg = new Map(), outdeg = new Map();
+      canvasEdges.forEach(e => {
+        indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
+        outdeg.set(e.from, (outdeg.get(e.from) || 0) + 1);
+      });
+      // 깊이 = 공격 단어로부터 몇 단계째 수비인가 (순환 대비 반복 횟수 제한)
+      for (let pass = 0; pass < canvasNodes.length; pass++) {
+        let changed = false;
+        canvasEdges.forEach(e => {
+          const a = nodeMap.get(e.from), b = nodeMap.get(e.to);
+          if (b.depth < a.depth + 1 && a.depth + 1 <= canvasNodes.length) { b.depth = a.depth + 1; changed = true; }
+        });
+        if (!changed) break;
+      }
+      canvasNodes.forEach(n => {
+        n.role = indeg.get(n.id) ? 'defense' : (outdeg.get(n.id) ? 'attack' : 'solo');
+      });
+
+      layoutCanvasNodes();
+    }
+
+    // 연결된 덩어리마다 왼쪽(공격) → 오른쪽(수비) 층으로 배치하고, 덩어리들을 줄 바꿔 가며 채움
+    function layoutCanvasNodes() {
+      const vp = document.getElementById('canvas-viewport');
+      treeLaidOut = vp.clientWidth > 0;
+      const maxRowW = Math.max(900, (vp.clientWidth || 1200) - 80);
+
+      const adj = new Map(canvasNodes.map(n => [n.id, []]));
+      canvasEdges.forEach(e => { if (adj.has(e.from) && adj.has(e.to)) { adj.get(e.from).push(e.to); adj.get(e.to).push(e.from); } });
+
+      const seen = new Set();
+      const comps = [];
+      canvasNodes.forEach(n => {
+        if (seen.has(n.id)) return;
+        const stack = [n.id], members = [];
+        seen.add(n.id);
+        while (stack.length) {
+          const id = stack.pop();
+          members.push(nodeMap.get(id));
+          adj.get(id).forEach(o => { if (!seen.has(o)) { seen.add(o); stack.push(o); } });
+        }
+        members.sort((a, b) => parseInt(a.id.slice(1), 10) - parseInt(b.id.slice(1), 10));
+        comps.push(members);
+      });
+
+      const COL_GAP = 70, ROW_GAP = 16;
+      const boxes = comps.map(members => {
+        const depths = [...new Set(members.map(n => n.depth))].sort((a, b) => a - b);
+        const cols = depths.map(d => members.filter(n => n.depth === d));
+        const slot = new Map();
+        cols.forEach((col, ci) => {
+          if (ci > 0) {
+            const parentMean = n => {
+              const ps = canvasEdges.filter(e => e.to === n.id && slot.has(e.from)).map(e => slot.get(e.from));
+              return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : 0;
+            };
+            col.sort((a, b) => parentMean(a) - parentMean(b));
+          }
+          col.forEach((n, i) => slot.set(n.id, i));
+        });
+        let cum = 0, compH = 0;
+        const colH = cols.map(col => col.reduce((s, n) => s + n.h, 0) + ROW_GAP * (col.length - 1));
+        compH = Math.max(...colH);
+        cols.forEach((col, ci) => {
+          const colW = Math.max(...col.map(n => n.w));
+          let y = (compH - colH[ci]) / 2;
+          col.forEach(n => {
+            n.lx = cum + colW / 2;
+            n.ly = y + n.h / 2;
+            y += n.h + ROW_GAP;
+          });
+          cum += colW + COL_GAP;
+        });
+        return { members, w: cum - COL_GAP, h: compH };
+      });
+
+      boxes.sort((a, b) => b.members.length - a.members.length || b.w - a.w);
+
+      let cx = 40, cy = 40, rowH = 0;
+      boxes.forEach(box => {
+        if (cx > 40 && cx + box.w > maxRowW + 40) { cx = 40; cy += rowH + 36; rowH = 0; }
+        box.members.forEach(n => { n.x = cx + n.lx; n.y = cy + n.ly; });
+        cx += box.w + 40;
+        rowH = Math.max(rowH, box.h);
+      });
+    }
+
+    function worldToScreen(wx, wy) {
+      return { sx: wx * scale + offsetX, sy: wy * scale + offsetY };
+    }
+
+    function screenToWorld(sx, sy) {
+      return { wx: (sx - offsetX) / scale, wy: (sy - offsetY) / scale };
+    }
+
+    function getNodeAt(wx, wy) {
+      for (let i = canvasNodes.length - 1; i >= 0; i--) {
+        const n = canvasNodes[i];
+        if (Math.abs(wx - n.x) <= n.w / 2 && Math.abs(wy - n.y) <= n.h / 2) return n;
+      }
+      return null;
+    }
+
+    // 마우스를 올린 노드 오른쪽의 ＋ 버튼 위치
+    function plusPos(n) {
+      return { x: n.x + n.w / 2 + PLUS_R + 8, y: n.y };
+    }
+
+    function hitTest(wx, wy) {
+      if (hoverId) {
+        const h = nodeMap.get(hoverId);
+        if (h) {
+          const c = plusPos(h), R = PLUS_R + 3;
+          if ((wx - c.x) ** 2 + (wy - c.y) ** 2 <= R * R) return { node: h, plus: true };
+          // 노드에서 ＋ 로 마우스를 옮기는 동안 강조가 풀리지 않도록 사이 구간도 유지
+          if (wx >= h.x + h.w / 2 && wx <= c.x && Math.abs(wy - c.y) <= R) return { node: h, plus: false };
+        }
+      }
+      return { node: getNodeAt(wx, wy), plus: false };
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function renderCanvas() {
+      const canvas = document.getElementById('mainCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 마우스를 올린 노드와 직접 이어진 것만 선명하게
+      let focus = null;
+      if (hoverId) {
+        focus = new Set([hoverId]);
+        canvasEdges.forEach(e => {
+          if (e.from === hoverId) focus.add(e.to);
+          if (e.to === hoverId) focus.add(e.from);
+        });
+      }
+
+      canvasEdges.forEach(edge => {
+        const a = nodeMap.get(edge.from), b = nodeMap.get(edge.to);
+        if (!a || !b) return;
+        const p1 = worldToScreen(a.x + a.w / 2, a.y);
+        const p2 = worldToScreen(b.x - b.w / 2, b.y);
+        const lit = !focus || edge.from === hoverId || edge.to === hoverId;
+        const color = edge.type === 'auto' ? (lit && focus ? '#c9cee0' : '#5a6178') : '#e8eaf0';
+        const off = Math.max(30 * scale, Math.abs(p2.sx - p1.sx) / 2);
+
+        ctx.globalAlpha = lit ? 1 : 0.12;
+        ctx.beginPath();
+        ctx.moveTo(p1.sx, p1.sy);
+        ctx.bezierCurveTo(p1.sx + off, p1.sy, p2.sx - off, p2.sy, p2.sx, p2.sy);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = (edge.type === 'auto' ? 1.6 : 2.4) * Math.max(scale, 0.8);
+        ctx.stroke();
+
+        const hl = 10 * Math.max(scale, 0.8);
+        ctx.beginPath();
+        ctx.moveTo(p2.sx, p2.sy);
+        ctx.lineTo(p2.sx - hl, p2.sy - hl * 0.5);
+        ctx.lineTo(p2.sx - hl, p2.sy + hl * 0.5);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+
+      canvasNodes.forEach(node => {
+        const p = worldToScreen(node.x, node.y);
+        const w = node.w * scale, h = node.h * scale;
+        const lit = !focus || focus.has(node.id);
+        ctx.globalAlpha = lit ? 1 : 0.2;
+
+        roundRect(ctx, p.sx - w / 2, p.sy - h / 2, w, h, h / 2);
+        ctx.fillStyle = ROLE_COLORS[node.role];
+        ctx.fill();
+        if (node.id === hoverId) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = '#0e1016';
+        ctx.font = nodeFont(Math.max(9, 14 * scale));
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(node.word, p.sx, p.sy + 0.5);
+        ctx.globalAlpha = 1;
+      });
+
+      if (hoverId && nodeMap.has(hoverId) && !isConnecting && !isDragging) {
+        const c = plusPos(nodeMap.get(hoverId));
+        const pc = worldToScreen(c.x, c.y);
+        const pr = PLUS_R * scale;
+        ctx.beginPath();
+        ctx.arc(pc.sx, pc.sy, pr, 0, Math.PI * 2);
+        ctx.fillStyle = '#e8eaf0';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pc.sx - pr * 0.5, pc.sy);
+        ctx.lineTo(pc.sx + pr * 0.5, pc.sy);
+        ctx.moveTo(pc.sx, pc.sy - pr * 0.5);
+        ctx.lineTo(pc.sx, pc.sy + pr * 0.5);
+        ctx.strokeStyle = '#0e1016';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      if (isConnecting && connectSourceId) {
+        const src = nodeMap.get(connectSourceId);
+        if (src) {
+          const p1 = worldToScreen(src.x, src.y);
+          ctx.beginPath();
+          ctx.moveTo(p1.sx, p1.sy);
+          ctx.lineTo(connectStartX, connectStartY);
+          ctx.strokeStyle = '#e8eaf0';
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([8, 8]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
+
+    function resetCanvas() {
+      scale = 1;
+      offsetX = 0;
+      offsetY = 0;
+      hoverId = null;
+      buildCanvasGraph();
+      renderCanvas();
+    }
+
+    function clearEdges() {
+      canvasEdges = canvasEdges.filter(e => e.type === 'auto');
+      renderCanvas();
+    }
+
+    function getCanvasPos(e) {
+      const rect = document.getElementById('mainCanvas').getBoundingClientRect();
+      return { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
+    }
+
+    function onCanvasMouseDown(e) {
+      const { sx, sy } = getCanvasPos(e);
+      const world = screenToWorld(sx, sy);
+
+      const hit = hitTest(world.wx, world.wy);
+      if (hit.plus) {            // ＋ 버튼: 이 단어 뒤에 이어 추가
+        openExtendModal(null, hit.node.word);
+        return;
+      }
+
+      dragStartX = sx;
+      dragStartY = sy;
+      dragStartOffsetX = offsetX;
+      dragStartOffsetY = offsetY;
+
+      const node = getNodeAt(world.wx, world.wy);
+      if (node) {
+        isConnecting = true;
+        connectSourceId = node.id;
+        connectStartX = sx;
+        connectStartY = sy;
+      } else {
+        isDragging = true;
+      }
+    }
+
+    function onCanvasMouseMove(e) {
+      const { sx, sy } = getCanvasPos(e);
+
+      if (!isDragging && !isConnecting) {
+        const w = screenToWorld(sx, sy);
+        const n = hitTest(w.wx, w.wy).node;
+        const id = n ? n.id : null;
+        if (id !== hoverId) {
+          hoverId = id;
+          document.getElementById('canvas-viewport').style.cursor = n ? 'pointer' : '';
+          renderCanvas();
+        }
+        return;
+      }
+
+      if (isDragging) {
+        offsetX = dragStartOffsetX + (sx - dragStartX);
+        offsetY = dragStartOffsetY + (sy - dragStartY);
+      } else {
+        connectStartX = sx;
+        connectStartY = sy;
+      }
+      renderCanvas();
+    }
+
+    function onCanvasMouseUp(e) {
+      const { sx, sy } = getCanvasPos(e);
+      const world = screenToWorld(sx, sy);
+      const moved = Math.abs(sx - dragStartX) >= CLICK_THRESHOLD || Math.abs(sy - dragStartY) >= CLICK_THRESHOLD;
+
+      if (isConnecting && connectSourceId) {
+        const sourceId = connectSourceId;
+        const targetNode = getNodeAt(world.wx, world.wy);
+
+        if (targetNode && targetNode.id !== sourceId) {
+          const exists = canvasEdges.some(ed => ed.from === sourceId && ed.to === targetNode.id);
+          if (!exists) canvasEdges.push({ from: sourceId, to: targetNode.id, type: 'manual' });
+        } else if (!moved) {
+          const src = nodeMap.get(sourceId);
+          if (src) copyToClipboard(src.word);
+        }
+        isConnecting = false;
+        connectSourceId = null;
+        renderCanvas();
+      } else if (isDragging) {
+        isDragging = false;
+      }
+    }
+
+    function onCanvasMouseLeave() {
+      isDragging = false;
+      isConnecting = false;
+      connectSourceId = null;
+      hoverId = null;
+      renderCanvas();
+    }
+
+    function onCanvasWheel(e) {
+      e.preventDefault();
+      const { sx, sy } = getCanvasPos(e);
+
+      const worldBefore = screenToWorld(sx, sy);
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const newScale = Math.min(Math.max(scale * factor, 0.3), 3);
+
+      if (newScale !== scale) {
+        scale = newScale;
+        offsetX = sx - worldBefore.wx * scale;
+        offsetY = sy - worldBefore.wy * scale;
+        renderCanvas();
+      }
+    }
+
+    // =========================================================================
+    // WORD LIST
+    // =========================================================================
+    function renderLetterBar() {
+      const bar = document.getElementById('letterBar');
+      const show = currentCat === '미션';
+      bar.classList.toggle('hidden', !show);
+      if (!show) return;
+
+      const missionWords = words.filter(w => w.category === '미션');
+      bar.innerHTML = '<button class="letter' + (currentLetter ? '' : ' is-active') + '" onclick="setLetter(null)">전체 <small>' + missionWords.length + '</small></button>' +
+        MISSION_LETTERS.map(l => {
+          const n = missionWords.filter(w => parseConditions(w.condition).some(c => c.ch === l)).length;
+          return '<button class="letter' + (currentLetter === l ? ' is-active' : '') + (n ? '' : ' is-empty') + '" onclick="setLetter(\'' + l + '\')">' + l + '<small>' + n + '</small></button>';
+        }).join('');
+    }
+
+    function setLetter(l) {
+      currentLetter = currentLetter === l ? null : l;
+      renderWordList();
+    }
+
+    function renderWordList() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const minLen = parseInt(document.getElementById('lengthFilter').value, 10) || 0;
+      const onlyUnmem = document.getElementById('unmemorizedOnly').checked;
+      const sortMode = document.getElementById('sortMode').value;
+
+      let rows = [];
+      words.forEach(entry => {
+        if (currentCat === 'all' || entry.category === currentCat) rows.push({ entry });
+      });
+      const total = rows.length;
+      const maxLen = Math.max(1, ...rows.map(r => charLen(r.entry.word)));
+
+      if (currentCat === '미션' && currentLetter) {
+        rows = rows.filter(r => parseConditions(r.entry.condition).some(c => c.ch === currentLetter));
+      }
+      rows = rows.filter(r => {
+        if (onlyUnmem && r.entry.memorized) return false;
+        if (r.entry.word.toLowerCase().indexOf(search) === -1) return false;
+        if (minLen > 0 && charLen(r.entry.word) < minLen) return false;
+        return true;
+      });
+
+      if (currentCat === '미션' && currentLetter) {
+        rows.sort((a, b) => countChar(b.entry.word, currentLetter) - countChar(a.entry.word, currentLetter));
+      } else if (sortMode === 'len') {
+        rows.sort((a, b) => charLen(b.entry.word) - charLen(a.entry.word));
+      }
+
+      const tbody = document.getElementById('wordTableBody');
+      tbody.innerHTML = '';
+
+      rows.forEach(({ entry }) => {
+        const isMem = !!entry.memorized;
+        const isChain = entry.category === '공수';
+        const isMission = entry.category === '미션';
+        const conds = isMission ? parseConditions(entry.condition) : [];
+        const shown = currentLetter ? conds.filter(c => c.ch === currentLetter) : conds;
+
+        const wordCell = isChain ? chainHtml(entry.word)
+          : isMission ? highlightWord(entry.word, shown)
+          : escapeHtml(entry.word);
+        const n = charLen(entry.word);
+        const lenCell = isChain
+          ? '<span class="num">' + parseChain(entry.word).length + '단계</span>'
+          : '<span class="len">' + n + '</span><div class="lenbar"><i style="width:' + Math.round(n / maxLen * 100) + '%"></i></div>';
+        const copyCell = '<div class="actions">' + (isChain
+          ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가</button>'
+          : '<button class="btn" onclick="copyToClipboard(' + jsAttr(entry.word) + ')">복사</button>') +
+          '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정</button>' +
+          '<button class="btn btn-danger" onclick="deleteWord(' + jsAttr(entry.id) + ')">삭제</button></div>';
+
+        const tr = document.createElement('tr');
+        if (isMem) tr.className = 'is-memo';
+        tr.innerHTML =
+          '<td><input type="checkbox" ' + (isMem ? 'checked' : '') + ' aria-label="암기 표시" onchange="toggleMemo(' + jsAttr(entry.id) + ')"></td>' +
+          '<td class="cell-word">' + wordCell + '</td>' +
+          '<td><span class="chip ' + getCategoryColorClass(entry.category) + '">' + escapeHtml(entry.category) + '</span></td>' +
+          '<td>' + lenCell + '</td>' +
+          '<td>' + (isMission ? conditionBadges(entry.word, conds) : '') + '</td>' +
+          '<td>' + copyCell + '</td>';
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('listCount').textContent = rows.length + ' / ' + total;
+      document.getElementById('listTableContainer').classList.toggle('hidden', rows.length === 0);
+      document.getElementById('listEmpty').textContent = dbLoading ? '단어를 불러오는 중…'
+        : (total === 0 ? '아직 등록된 단어가 없어요.' : '조건에 맞는 단어가 없어요.');
+      document.getElementById('listEmpty').classList.toggle('hidden', rows.length !== 0);
+      renderLetterBar();
+    }
+
+    async function toggleMemo(id) {
+      if (!requireWritable()) { renderWordList(); return; }
+      const entry = words.find(w => w.id === id);
+      if (!entry) return;
+      try { await col.doc(id).update({ memorized: !entry.memorized }); }
+      catch (err) { dbError(err); }
+    }
+
+    async function deleteWord(id) {
+      if (!requireWritable()) return;
+      const entry = words.find(w => w.id === id);
+      if (!entry || !confirm('‘' + entry.word + '’ 을(를) 삭제할까요?')) return;
+      try { await col.doc(id).delete(); showToast('삭제했어요.'); }
+      catch (err) { dbError(err); }
+    }
+
+    // =========================================================================
+    // ADD WORD
+    // =========================================================================
+    let editId = null;   // null 이면 새 단어 추가, 값이 있으면 그 문서 수정
+
+    const WORD_HINTS = {
+      '장문': '',
+      '공수': '공백은 다음 단계, / 는 같은 단계의 선택지예요. 예) 닻혀 혀어어어업상/혀모양꽃갓',
+      '미션': '',
+      '예능': ''
+    };
+
+    function openAddModal() {
+      editId = null;
+      document.getElementById('modal-title').textContent = '단어 추가';
+      document.getElementById('addSub').textContent = '새 단어를 단어장에 추가하세요.';
+      document.getElementById('addSubmit').textContent = '추가';
+      document.getElementById('addModal').classList.remove('hidden');
+      document.getElementById('newWord').value = '';
+      document.getElementById('newCategory').value = currentCat === 'all' ? '장문' : currentCat;
+      toggleMissionCondition();
+      document.getElementById('newCondition').value = '';
+      document.getElementById('newWord').focus();
+    }
+
+    function openEditModal(id) {
+      if (!requireWritable()) return;
+      const entry = words.find(w => w.id === id);
+      if (!entry) return;
+      editId = id;
+      document.getElementById('modal-title').textContent = '단어 수정';
+      document.getElementById('addSub').textContent = '단어 내용을 고쳐 저장하세요.';
+      document.getElementById('addSubmit').textContent = '저장';
+      document.getElementById('addModal').classList.remove('hidden');
+      document.getElementById('newWord').value = entry.word;
+      document.getElementById('newCategory').value = entry.category;
+      toggleMissionCondition();
+      document.getElementById('newCondition').value = entry.condition || '';
+      document.getElementById('newWord').focus();
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.add('hidden');
+      editId = null;
+    }
+
+    function toggleMissionCondition() {
+      const cat = document.getElementById('newCategory').value;
+      document.getElementById('missionConditionField').classList.toggle('hidden', cat !== '미션');
+      document.getElementById('wordHint').textContent = WORD_HINTS[cat] || '';
+    }
+
+    async function handleAddWord(e) {
+      e.preventDefault();
+      if (!requireWritable()) return;
+      let word = document.getElementById('newWord').value.trim();
+      const category = document.getElementById('newCategory').value;
+      const condition = document.getElementById('newCondition').value.trim();
+      if (!word) return;
+      if (category === '공수') word = word.replace(/\s*\/\s*/g, '/');
+      const id = editId;
+      if (words.some(w => w.id !== id && w.category === category && w.word === word)) {
+        showToast('이미 있는 단어예요.');
+        return;
+      }
+
+      closeAddModal();
+      try {
+        if (id) {
+          await col.doc(id).update({
+            category,
+            word,
+            condition: (category === '미션' && condition) ? condition : firebase.firestore.FieldValue.delete()
+          });
+          showToast('수정했어요.');
+        } else {
+          const entry = { category, word, order: Date.now(), memorized: false };
+          if (category === '미션' && condition) entry.condition = condition;
+          await col.add(entry);
+          showToast('단어가 추가되었습니다!');
+        }
+      } catch (err) { dbError(err); }
+    }
+
+    // =========================================================================
+    // EXTEND (공수 단어 세트에 이어 추가)
+    // =========================================================================
+    let extendId = null;
+
+    // base 단어 뒤에 text(공백=다음 단계, /=선택지)를 이어 붙임
+    async function extendFrom(base, text, preferId) {
+      const endsWithBase = w => {
+        if (!w || w.category !== '공수') return false;
+        const g = parseChain(w.word);
+        const last = g[g.length - 1];
+        return last.length === 1 && last[0] === base;
+      };
+      const pref = words.find(w => w.id === preferId);
+      const target = endsWithBase(pref) ? pref : words.find(endsWithBase);
+      if (target) {
+        await col.doc(target.id).update({ word: target.word.trim() + ' ' + text });   // 기존 세트 뒤에 그대로 연장
+        return { appended: true };
+      }
+      // 세트 중간이거나 여러 선택지 중 하나면 "base 새단어" 새 줄 (맵에서는 같은 노드로 합쳐짐)
+      await col.add({ category: '공수', word: base + ' ' + text, order: Date.now(), memorized: false });
+      return { appended: false };
+    }
+
+    function openExtendModal(id, base) {
+      extendId = id || null;
+      const entry = extendId ? words.find(w => w.id === extendId) : null;
+      const sel = document.getElementById('extBase');
+      let toks, def;
+      if (entry) {
+        const groups = parseChain(entry.word);
+        toks = [...new Set(groups.flat())];
+        def = base || groups[groups.length - 1][0];
+      } else {
+        toks = [base];
+        def = base;
+      }
+      sel.innerHTML = toks.map(t => '<option value="' + attrEsc(t) + '">' + escapeHtml(t) + '</option>').join('');
+      sel.value = def;
+      document.getElementById('extText').value = '';
+      document.getElementById('extendModal').classList.remove('hidden');
+      updateExtendPreview();
+      document.getElementById('extText').focus();
+    }
+
+    function closeExtendModal() {
+      document.getElementById('extendModal').classList.add('hidden');
+    }
+
+    function updateExtendPreview() {
+      const base = document.getElementById('extBase').value;
+      const text = document.getElementById('extText').value.trim().replace(/\s*\/\s*/g, '/');
+      const info = document.getElementById('extLink');
+      const lastCh = [...base].pop();
+      document.getElementById('extPreview').innerHTML = chainHtml(text ? base + ' ' + text : base, true);
+
+      if (!text) {
+        info.className = 'hint';
+        info.textContent = '‘' + lastCh + '’(으)로 시작하는 단어를 이어 주세요. 공백은 다음 단계, / 는 같은 단계의 선택지예요.';
+        return;
+      }
+      const bad = parseChain(text)[0].filter(t => [...t][0] !== lastCh);
+      info.className = 'hint ' + (bad.length ? 'warn' : 'ok');
+      info.textContent = bad.length
+        ? '⚠ ‘' + bad.join(', ') + '’은(는) ‘' + lastCh + '’(으)로 시작하지 않아요. 두음법칙처럼 일부러 다르게 잇는 거라면 그대로 추가하세요.'
+        : '✓ ‘' + lastCh + '’(으)로 자연스럽게 이어져요.';
+    }
+
+    async function handleExtend(e) {
+      e.preventDefault();
+      if (!requireWritable()) return;
+      const base = document.getElementById('extBase').value;
+      const text = document.getElementById('extText').value.trim().replace(/\s*\/\s*/g, '/');
+      if (!base || !text) return;
+
+      closeExtendModal();
+      try {
+        const res = await extendFrom(base, text, extendId);
+        showToast(res.appended ? '기존 세트 뒤에 이어 추가했어요!' : '‘' + base + '’ 뒤에 새 줄로 이어 추가했어요!');
+      } catch (err) { dbError(err); }
+    }
+
+    // =========================================================================
+    // CHAIN EDITOR (공수 세트 수정: 단계 / 선택지 단위)
+    // =========================================================================
+    let chainDraft = null;   // { id, groups: [[단어, ...], ...] }  groups[i] = i번째 단계의 선택지들
+    const ROLE_LABEL = { solo: '단독', atk: '공격', def: '수비' };
+
+    function stepRole(i, n) {
+      return n === 1 ? 'solo' : (i === 0 ? 'atk' : 'def');
+    }
+
+    function openChainEditor(id) {
+      if (!requireWritable()) return;
+      const entry = words.find(w => w.id === id);
+      if (!entry) return;
+      chainDraft = { id, groups: parseChain(entry.word).map(g => g.slice()) };
+      renderChainEditor();
+      document.getElementById('chainModal').classList.remove('hidden');
+    }
+
+    function closeChainEditor() {
+      document.getElementById('chainModal').classList.add('hidden');
+      chainDraft = null;
+    }
+
+    function focusChainInput(stepIdx, last) {
+      const steps = document.getElementById('chainSteps').querySelectorAll('.step');
+      const ins = steps[stepIdx] && steps[stepIdx].querySelectorAll('input');
+      if (ins && ins.length) ins[last ? ins.length - 1 : 0].focus();
+    }
+
+    function renderChainEditor() {
+      const g = chainDraft.groups;
+      document.getElementById('chainSteps').innerHTML = g.map((toks, i) => {
+        const role = stepRole(i, g.length);
+        return '<div class="step ' + role + '">' +
+          '<div class="step-head"><span class="step-no">' + (i + 1) + '단계 · ' + ROLE_LABEL[role] + '</span><span class="step-tools">' +
+          '<button type="button" class="btn icon-btn" title="위로" onclick="moveChainStep(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button type="button" class="btn icon-btn" title="아래로" onclick="moveChainStep(' + i + ',1)"' + (i === g.length - 1 ? ' disabled' : '') + '>↓</button>' +
+          '<button type="button" class="btn icon-btn btn-danger" title="단계 삭제" onclick="removeChainStep(' + i + ')"' + (g.length === 1 ? ' disabled' : '') + '>✕</button></span></div>' +
+          toks.map((t, j) =>
+            '<div class="tokrow"><input type="text" class="field" value="' + attrEsc(t) + '" aria-label="' + (i + 1) + '단계 단어 ' + (j + 1) + '" autocomplete="off" oninput="setChainToken(' + i + ',' + j + ',this.value)">' +
+            '<button type="button" class="btn icon-btn" title="선택지 삭제" onclick="removeChainToken(' + i + ',' + j + ')"' + (toks.length === 1 ? ' disabled' : '') + '>×</button></div>'
+          ).join('') +
+          '<button type="button" class="btn btn-sm" onclick="addChainToken(' + i + ')">＋ 같은 단계에 선택지(/) 추가</button></div>';
+      }).join('');
+      updateChainPreview();
+    }
+
+    function setChainToken(i, j, v) { chainDraft.groups[i][j] = v; updateChainPreview(); }
+    function addChainToken(i) { chainDraft.groups[i].push(''); renderChainEditor(); focusChainInput(i, true); }
+    function removeChainToken(i, j) {
+      if (chainDraft.groups[i].length > 1) { chainDraft.groups[i].splice(j, 1); renderChainEditor(); }
+    }
+    function addChainStep() {
+      chainDraft.groups.push(['']);
+      renderChainEditor();
+      focusChainInput(chainDraft.groups.length - 1, false);
+    }
+    function removeChainStep(i) {
+      if (chainDraft.groups.length > 1) { chainDraft.groups.splice(i, 1); renderChainEditor(); }
+    }
+    function moveChainStep(i, d) {
+      const g = chainDraft.groups, k = i + d;
+      if (k < 0 || k >= g.length) return;
+      [g[i], g[k]] = [g[k], g[i]];
+      renderChainEditor();
+    }
+
+    // 입력값 정리: 공백/슬래시 제거, 빈 칸·중복 제거, 빈 단계 제거
+    function cleanDraft() {
+      return chainDraft.groups
+        .map(g => [...new Set(g.map(t => t.replace(/[\s\/]/g, '')).filter(Boolean))])
+        .filter(g => g.length);
+    }
+
+    function chainWord(groups) {
+      return groups.map(g => g.join('/')).join(' ');
+    }
+
+    // 단계 사이에서 앞 단어의 끝 글자와 뒤 단어의 첫 글자가 다른 경우를 찾음
+    function chainMismatches(groups) {
+      const out = [];
+      for (let i = 1; i < groups.length; i++) {
+        groups[i - 1].forEach(a => groups[i].forEach(b => {
+          const x = [...a].pop(), y = [...b][0];
+          if (x !== y) out.push('‘' + a + '’(끝 ' + x + ') → ‘' + b + '’(첫 ' + y + ')');
+        }));
+      }
+      return out;
+    }
+
+    function updateChainPreview() {
+      const gs = cleanDraft();
+      document.getElementById('chainPreview').innerHTML = gs.length
+        ? chainHtml(chainWord(gs), true)
+        : '<span class="hint">단어를 입력하세요</span>';
+
+      const warn = document.getElementById('chainWarn');
+      const bad = chainMismatches(gs);
+      if (bad.length) {
+        warn.className = 'hint warn';
+        warn.innerHTML = '⚠ 이어지는 글자가 다른 곳이 있어요 (두음법칙이면 괜찮아요)<br>' +
+          bad.slice(0, 3).map(escapeHtml).join('<br>') + (bad.length > 3 ? '<br>…외 ' + (bad.length - 3) + '건' : '');
+      } else if (gs.length > 1) {
+        warn.className = 'hint ok';
+        warn.textContent = '✓ 모든 단계가 이어져요.';
+      } else {
+        warn.className = 'hint';
+        warn.textContent = '';
+      }
+    }
+
+    async function handleChainSave(e) {
+      e.preventDefault();
+      if (!chainDraft || !requireWritable()) return;
+      const id = chainDraft.id;
+      const gs = cleanDraft();
+      if (!gs.length) { showToast('단어를 하나 이상 입력하세요.'); return; }
+
+      const word = chainWord(gs);
+      const entry = words.find(w => w.id === id);
+      if (entry && entry.word === word) { closeChainEditor(); showToast('바뀐 내용이 없어요.'); return; }
+      if (words.some(w => w.id !== id && w.category === '공수' && w.word === word)) {
+        showToast('이미 있는 단어 세트예요.');
+        return;
+      }
+
+      closeChainEditor();
+      try {
+        await col.doc(id).update({ word });
+        showToast('단어 세트를 수정했어요.');
+      } catch (err) { dbError(err); }
+    }
+
+    // =========================================================================
+    // FIREBASE (Firestore)
+    // =========================================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyAroF4H9X2OGq0ELPlP-EHcUEoJObE4khM",
+      authDomain: "kkutu-voca.firebaseapp.com",
+      projectId: "kkutu-voca",
+      storageBucket: "kkutu-voca.firebasestorage.app",
+      messagingSenderId: "75924564872",
+      appId: "1:75924564872:web:46eceebb034425a57de83d",
+      measurementId: "G-QNG78PBDCC"
+    };
+
+    const STATUS_TEXT = {
+      connecting: 'DB 연결 중…',
+      online: '실시간 동기화 중',
+      error: '연결 실패 · 읽기 전용',
+      denied: '권한 없음 · 읽기 전용'
+    };
+
+    function setDbStatus(state) {
+      const el = document.getElementById('dbStatus');
+      el.dataset.state = state;
+      el.textContent = STATUS_TEXT[state];
+    }
+
+    function requireWritable() {
+      if (readOnly || !col) {
+        showToast('DB에 연결되지 않아 저장할 수 없어요.');
+        return false;
+      }
+      return true;
+    }
+
+    function dbError(err) {
+      console.error(err);
+      showToast(err && err.code === 'permission-denied'
+        ? 'Firestore 보안 규칙 때문에 저장할 수 없어요.'
+        : '저장에 실패했어요: ' + ((err && err.message) || err));
+    }
+
+    // DB 를 못 쓸 때: 파일에 들어 있는 기본 단어를 읽기 전용으로 보여줌
+    function loadLocalFallback() {
+      if (words.length) return;
+      words = wordsData.map((w, i) => Object.assign({ id: 'local' + i, order: i }, w));
+      onWordsChanged();
+    }
+
+    function onWordsChanged() {
+      document.getElementById('seedBanner').classList.toggle('hidden', !(!readOnly && words.length === 0));
+      const sig = words.filter(w => w.category === '공수').map(w => w.word).join('\n');
+      if (sig !== chainSig) {     // 공수 단어가 바뀐 경우에만 마인드맵 재구성 (체크/삭제 등으로 레이아웃이 흔들리지 않게)
+        chainSig = sig;
+        hoverId = null;
+        buildCanvasGraph();
+        renderCanvas();
+      }
+      renderWordList();
+    }
+
+    function initFirebase() {
+      try {
+        if (typeof firebase === 'undefined') throw new Error('Firebase SDK 를 불러오지 못했어요.');
+        firebase.initializeApp(firebaseConfig);
+        col = firebase.firestore().collection('words');
+        col.orderBy('order').onSnapshot(snap => {
+          dbLoading = false;
+          readOnly = false;
+          words = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+          setDbStatus('online');
+          onWordsChanged();
+        }, err => {
+          console.error(err);
+          dbLoading = false;
+          readOnly = true;
+          setDbStatus(err && err.code === 'permission-denied' ? 'denied' : 'error');
+          showToast(err && err.code === 'permission-denied'
+            ? 'Firestore 보안 규칙 때문에 읽을 수 없어요. 콘솔에서 규칙을 확인하세요.'
+            : 'DB 연결에 실패했어요. 기본 단어만 읽기 전용으로 보여줘요.');
+          loadLocalFallback();
+          renderWordList();
+        });
+      } catch (err) {
+        console.error(err);
+        dbLoading = false;
+        setDbStatus('error');
+        loadLocalFallback();
+        renderWordList();
+      }
+    }
+
+    // DB 가 비어 있을 때 이 파일의 기본 단어를 업로드 (고정 ID 라서 여러 번 눌러도 중복되지 않음)
+    async function uploadSeed() {
+      if (!requireWritable()) return;
+      try {
+        const db = firebase.firestore();
+        const batch = db.batch();
+        wordsData.forEach((w, i) => {
+          const data = { category: w.category, word: w.word, order: i, memorized: false };
+          if (w.condition) data.condition = w.condition;
+          batch.set(col.doc('seed_' + String(i + 1).padStart(3, '0')), data);
+        });
+        await batch.commit();
+        showToast('기본 단어 ' + wordsData.length + '개를 올렸어요!');
+      } catch (err) { dbError(err); }
+    }
+
+    // =========================================================================
+    // INIT
+    // =========================================================================
+    function init() {
+      window.addEventListener('resize', resizeCanvas);
+      document.getElementById('seedCount').textContent = wordsData.length;
+      resizeCanvas();
+      buildCanvasGraph();
+      setCategory('all');
+      initFirebase();
+    }
+
+    init();
+  </script>
+</body>
+</html>
