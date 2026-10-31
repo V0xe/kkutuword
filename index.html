@@ -389,7 +389,7 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" onclick="closeChainEditor()">취소</button>
-          <button type="submit" class="btn btn-light">저장</button>
+          <button type="submit" class="btn btn-light" id="chainSubmit">저장</button>
         </div>
       </form>
     </div>
@@ -1210,8 +1210,8 @@
         const copyCell = '<div class="actions">' + (isChain
           ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가' + (isAdmin ? '' : ' 요청') + '</button>'
           : '<button class="btn" onclick="copyToClipboard(' + jsAttr(entry.word) + ')">복사</button>') +
-          (isAdmin ? '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정</button>' +
-          '<button class="btn btn-danger" onclick="deleteWord(' + jsAttr(entry.id) + ')">삭제</button>' : '') + '</div>';
+          '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정' + (isAdmin ? '' : ' 요청') + '</button>' +
+          '<button class="btn btn-danger" onclick="' + (isAdmin ? 'deleteWord' : 'requestDelete') + '(' + jsAttr(entry.id) + ')">삭제' + (isAdmin ? '' : ' 요청') + '</button></div>';
 
         const tr = document.createElement('tr');
         if (isMem) tr.className = 'is-memo';
@@ -1275,13 +1275,12 @@
     }
 
     function openEditModal(id) {
-      if (!requireAdmin()) return;
       const entry = words.find(w => w.id === id);
       if (!entry) return;
       editId = id;
-      document.getElementById('modal-title').textContent = '단어 수정';
-      document.getElementById('addSub').textContent = '단어 내용을 고쳐 저장하세요.';
-      document.getElementById('addSubmit').textContent = '저장';
+      document.getElementById('modal-title').textContent = isAdmin ? '단어 수정' : '단어 수정 요청';
+      document.getElementById('addSub').textContent = isAdmin ? '단어 내용을 고쳐 저장하세요.' : '고친 내용을 관리자에게 보내요. 승인되면 반영돼요.';
+      document.getElementById('addSubmit').textContent = isAdmin ? '저장' : '요청 보내기';
       document.getElementById('addModal').classList.remove('hidden');
       document.getElementById('newWord').value = entry.word;
       document.getElementById('newCategory').value = entry.category;
@@ -1303,7 +1302,7 @@
 
     async function handleAddWord(e) {
       e.preventDefault();
-      const asRequest = !editId && !isAdmin;      // 일반 사용자는 요청만 보낼 수 있음
+      const asRequest = !isAdmin;      // 일반 사용자는 요청만 보낼 수 있음
       if (!asRequest && !requireAdmin()) return;
       let word = document.getElementById('newWord').value.trim();
       const category = document.getElementById('newCategory').value;
@@ -1316,13 +1315,26 @@
         return;
       }
 
-      closeAddModal();
       if (asRequest) {
-        const req = { type: 'add', category, word };
+        const req = { type: id ? 'edit' : 'add', category, word };
         if (category === '미션' && condition) req.condition = condition;
+        if (id) {
+          const old = words.find(w => w.id === id);
+          if (!old) { closeAddModal(); return; }
+          if (old.category === category && old.word === word && (old.condition || '') === (category === '미션' ? condition : '')) {
+            closeAddModal();
+            showToast('바뀐 내용이 없어요.');
+            return;
+          }
+          req.targetId = id;
+          req.oldWord = old.word;
+          req.oldCategory = old.category;
+        }
+        closeAddModal();
         await submitRequest(req);
         return;
       }
+      closeAddModal();
       try {
         if (id) {
           await col.doc(id).update({
@@ -1440,10 +1452,11 @@
     }
 
     function openChainEditor(id) {
-      if (!requireAdmin()) return;
       const entry = words.find(w => w.id === id);
       if (!entry) return;
       chainDraft = { id, groups: parseChain(entry.word).map(g => g.slice()) };
+      document.getElementById('chain-title').textContent = isAdmin ? '단어 세트 수정' : '단어 세트 수정 요청';
+      document.getElementById('chainSubmit').textContent = isAdmin ? '저장' : '요청 보내기';
       renderChainEditor();
       document.getElementById('chainModal').classList.remove('hidden');
     }
@@ -1543,7 +1556,9 @@
 
     async function handleChainSave(e) {
       e.preventDefault();
-      if (!chainDraft || !requireAdmin()) return;
+      if (!chainDraft) return;
+      const asRequest = !isAdmin;
+      if (!asRequest && !requireAdmin()) return;
       const id = chainDraft.id;
       const gs = cleanDraft();
       if (!gs.length) { showToast('단어를 하나 이상 입력하세요.'); return; }
@@ -1557,6 +1572,10 @@
       }
 
       closeChainEditor();
+      if (asRequest) {
+        await submitRequest({ type: 'edit', category: '공수', word, targetId: id, oldWord: entry.word, oldCategory: entry.category });
+        return;
+      }
       try {
         await col.doc(id).update({ word });
         showToast('단어 세트를 수정했어요.');
@@ -1719,34 +1738,53 @@
       el.classList.toggle('hidden', requests.length === 0);
     }
 
+    function reqWordHtml(category, word, condition) {
+      if (category === '공수') return chainHtml(word, true);
+      if (category === '미션') return highlightWord(word, parseConditions(condition));
+      return escapeHtml(word);
+    }
+
     function renderRequests() {
       const body = document.getElementById('reqBody');
       if (!body) return;
       body.innerHTML = '';
       updateReqBadge();
+      const TYPE_LABEL = { add: '추가', extend: '이어 추가', edit: '수정', delete: '삭제' };
 
       requests.forEach(r => {
-        const isExt = r.type === 'extend';
-        const isMission = r.category === '미션';
-        const conds = isMission ? parseConditions(r.condition) : [];
+        const type = r.type;
         const word = String(r.word || '');
-        let wordCell;
-        if (isExt) wordCell = chainHtml(String(r.base || '') + ' ' + word, true);
-        else if (r.category === '공수') wordCell = chainHtml(word, true);
-        else if (isMission) wordCell = highlightWord(word, conds);
-        else wordCell = escapeHtml(word);
         const norm = r.category === '공수' ? word.replace(/\s*\/\s*/g, '/') : word;
-        const dup = !isExt && words.some(w => w.category === r.category && w.word === norm);
+        const target = (type === 'edit' || type === 'delete') ? words.find(w => w.id === r.targetId) : null;
+        const isMission = r.category === '미션' && type !== 'delete';
+        let wordCell, tags = '';
+
+        if (type === 'extend') {
+          wordCell = chainHtml(String(r.base || '') + ' ' + word, true);
+        } else if (type === 'edit') {
+          const before = target ? reqWordHtml(target.category, target.word, target.condition)
+            : '<span class="num">' + escapeHtml(String(r.oldWord || '')) + '</span>';
+          wordCell = before + '<div class="hint">↓ 이렇게 수정</div>' + reqWordHtml(r.category, word, r.condition);
+          if (!target) tags = ' <span class="badge">대상 없음</span>';
+          else if (target.word !== r.oldWord || target.category !== r.oldCategory) tags = ' <span class="badge">원본 변경됨</span>';
+        } else if (type === 'delete') {
+          wordCell = target ? reqWordHtml(target.category, target.word, target.condition) : escapeHtml(word);
+          if (!target) tags = ' <span class="badge">이미 없음</span>';
+        } else {
+          wordCell = reqWordHtml(r.category, word, r.condition);
+          if (words.some(w => w.category === r.category && w.word === norm)) tags = ' <span class="badge">중복</span>';
+        }
+
         const t = r.createdAt && r.createdAt.toDate
           ? r.createdAt.toDate().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
           : '';
 
         const tr = document.createElement('tr');
         tr.innerHTML =
-          '<td>' + (isExt ? '이어 추가' : '추가') + (dup ? ' <span class="badge">중복</span>' : '') + '</td>' +
+          '<td>' + escapeHtml(TYPE_LABEL[type] || String(type)) + tags + '</td>' +
           '<td class="cell-word">' + wordCell + '</td>' +
           '<td><span class="chip ' + getCategoryColorClass(r.category) + '">' + escapeHtml(String(r.category || '')) + '</span></td>' +
-          '<td>' + (isMission ? conditionBadges(word, conds) : '') + '</td>' +
+          '<td>' + (isMission ? conditionBadges(word, parseConditions(r.condition)) : '') + '</td>' +
           '<td><span class="num">' + escapeHtml(t) + '</span></td>' +
           '<td><div class="actions">' +
             '<button class="btn btn-ok" onclick="approveRequest(' + jsAttr(r.id) + ')">승인</button>' +
@@ -1759,17 +1797,50 @@
       document.getElementById('reqEmpty').classList.toggle('hidden', requests.length !== 0);
     }
 
+    // 일반 사용자: 삭제 요청
+    async function requestDelete(id) {
+      const entry = words.find(w => w.id === id);
+      if (!entry) return;
+      if (!confirm('‘' + entry.word + '’ 삭제를 관리자에게 요청할까요?')) return;
+      await submitRequest({ type: 'delete', category: entry.category, word: entry.word, targetId: id });
+    }
+
     async function approveRequest(id) {
       if (!requireAdmin() || busyReq.has(id)) return;
       const r = requests.find(x => x.id === id);
       if (!r) return;
       busyReq.add(id);
       try {
+        const word = r.category === '공수' ? String(r.word).replace(/\s*\/\s*/g, '/') : String(r.word);
+
         if (r.type === 'extend') {
           await extendFrom(String(r.base), String(r.word), null);
           showToast('이어 추가를 승인했어요.');
+
+        } else if (r.type === 'edit' || r.type === 'delete') {
+          const target = words.find(w => w.id === r.targetId);
+          if (!target) {
+            showToast('대상 단어가 이미 없어서 요청만 지웠어요.');
+          } else if (r.type === 'delete') {
+            if (!confirm('‘' + target.word + '’ 을(를) 삭제할까요?')) return;
+            await col.doc(target.id).delete();
+            showToast('삭제를 승인했어요.');
+          } else {
+            if ((target.word !== r.oldWord || target.category !== r.oldCategory) &&
+                !confirm('요청을 보낸 뒤 원본 단어가 바뀌었어요. 그래도 수정할까요?')) return;
+            if (words.some(w => w.id !== target.id && w.category === r.category && w.word === word)) {
+              showToast('이미 같은 단어가 있어서 요청만 지웠어요.');
+            } else {
+              await col.doc(target.id).update({
+                category: r.category,
+                word,
+                condition: (r.category === '미션' && r.condition) ? r.condition : firebase.firestore.FieldValue.delete()
+              });
+              showToast('수정을 승인했어요.');
+            }
+          }
+
         } else {
-          const word = r.category === '공수' ? String(r.word).replace(/\s*\/\s*/g, '/') : String(r.word);
           if (words.some(w => w.category === r.category && w.word === word)) {
             showToast('이미 있는 단어라 요청만 지웠어요.');
           } else {
