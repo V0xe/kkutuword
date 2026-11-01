@@ -409,6 +409,7 @@
               <div class="qbtns">
                 <button class="btn btn-light" onclick="qSubmit()">제출 ↵</button>
                 <button class="btn" id="qHintBtn" onclick="qHint()"></button>
+                <button class="btn" id="qSpeakBtn" onclick="ttsSpeak(qSpeakText(Q.q)); qe('qInput').focus()">🔊 발음 듣기</button>
                 <button class="btn" onclick="qPass()">패스</button>
               </div>
             </div>
@@ -2090,7 +2091,7 @@
     const QDEF = { cats: ['장문', '공수', '미션', '예능'], letters: [], mem: 'all', minLen: 0, maxLen: 0, pick: false, picked: [],
       count: 10, order: 'random', chainDir: 'f', timeMode: 'none', perQ: 15, totalSec: 120, bonus: 0, penalty: 0,
       hint0: 1, showLen: true, showCho: false, hintBtn: true, hintCost: 30, lives: 0, tries: 1, requeue: true,
-      ignoreSpace: true, autoNext: 0, sound: true, combo: true };
+      ignoreSpace: true, autoNext: 0, sound: true, combo: true, ttsRate: 0.9 };
     const QPRE = [
       { n: '🐢 느긋하게', d: '시간 무제한 · 초성 힌트', v: { timeMode: 'none', hint0: 2, showLen: true, showCho: true, lives: 0, tries: 0 } },
       { n: '⚡ 기본', d: '문제당 20초', v: { timeMode: 'per', perQ: 20, hint0: 1, showLen: true, showCho: false, lives: 0, tries: 1 } },
@@ -2122,6 +2123,51 @@
     }
     function qNorm(s) { s = s.normalize('NFC').toLowerCase(); return QS.ignoreSpace ? s.replace(/\s+/g, '') : s.trim().replace(/\s+/g, ' '); }
     function qShuf(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+    // ---------- 발음 (Web Speech API) ----------
+    // 한글은 ko-KR, 영문(영단어·구)은 en-US 음성으로 구간별 자동 전환해서 읽어요.
+    const TTS_OK = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+    let ttsKeep = [], ttsTimer = 0;
+    function ttsVoice(lang) {
+      const vs = speechSynthesis.getVoices();
+      if (!vs.length) return null;
+      const L = lang.toLowerCase(), nl = v => v.lang.replace('_', '-').toLowerCase();
+      let pool = vs.filter(v => nl(v) === L);
+      if (!pool.length) pool = vs.filter(v => nl(v).slice(0, 2) === L.slice(0, 2));
+      if (!pool.length) return null;
+      return pool.find(v => /google|natural|premium|enhanced/i.test(v.name)) || pool[0];
+    }
+    function ttsSplit(text) {
+      const re = /[A-Za-z][A-Za-z0-9'’\-]*(?:[ ]+[A-Za-z][A-Za-z0-9'’\-]*)*/g, out = [];
+      let last = 0, m;
+      while ((m = re.exec(text))) {
+        if (m.index > last) out.push({ t: text.slice(last, m.index), lang: 'ko-KR' });
+        out.push({ t: m[0], lang: 'en-US' });
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) out.push({ t: text.slice(last), lang: 'ko-KR' });
+      return out.filter(x => /[\p{L}\p{N}]/u.test(x.t));
+    }
+    function ttsSpeak(text) {
+      if (!TTS_OK || !text) return;
+      clearTimeout(ttsTimer);
+      speechSynthesis.cancel();
+      // cancel 직후 바로 speak 하면 크롬에서 무시되는 경우가 있어 살짝 늦춰요
+      ttsTimer = setTimeout(() => {
+        ttsKeep = ttsSplit(text).map(x => {
+          const u = new SpeechSynthesisUtterance(x.t);
+          u.lang = x.lang; u.rate = QS.ttsRate || 0.9;
+          const v = ttsVoice(x.lang); if (v) u.voice = v;
+          return u;
+        });
+        ttsKeep.forEach(u => speechSynthesis.speak(u));
+      }, 40);
+    }
+    function ttsStop() { if (!TTS_OK) return; clearTimeout(ttsTimer); speechSynthesis.cancel(); }
+    function ttsTest() { ttsSpeak('안녕하세요, hello world'); }
+    // 모를 때 듣는 용도라 정답 단어 하나만 읽어줘요 (공수는 이어야 할 단어)
+    function qSpeakText(q) { return q.ans[0]; }
+    if (TTS_OK) speechSynthesis.getVoices();
     function qSnd(t) {
       if (!QS.sound) return;
       try {
@@ -2195,7 +2241,10 @@
         '<div>' + qRow('하트(목숨)', qSeg('lives', [[0, '무제한'], [3, '♥ 3'], [5, '♥ 5'], [10, '♥ 10']])) + qRow('문제당 기회', qSeg('tries', [[1, '1번'], [2, '2번'], [3, '3번'], [0, '무제한']]), '틀려도 다시 입력 가능') + '</div>' +
         '<div>' + qRow('정답 후 자동 넘김', qSeg('autoNext', [[0, '수동'], [1, '1초'], [2, '2초'], [3, '3초']])) +
           qChk('requeue', '틀린 단어 한 번 더 출제', '맨 뒤에 다시 등장') + qChk('ignoreSpace', '띄어쓰기 무시') + qChk('sound', '효과음') + qChk('combo', '콤보 점수 보너스') + '</div></div></div>';
-      qe('qCards').innerHTML = A + B + C + D + E;
+      const F = !TTS_OK ? '' : '<div class="qcard full" style="grid-column:1/-1"><h3><i style="font-style:normal">🔊</i>발음 듣기 <small style="color:var(--muted);font-weight:400">&nbsp;문제를 풀다 모르겠으면 🔊 버튼으로 정답 발음을 들어요</small></h3>' +
+        qRow('읽는 속도', qSeg('ttsRate', [[0.7, '느리게'], [0.9, '보통'], [1.1, '빠르게']])) +
+        '<div class="seg"><button type="button" class="btn btn-sm" onclick="ttsTest()">🔊 소리 테스트</button><span class="hint" style="margin:0">한글은 한국어, 영단어는 영어 음성으로 자동 전환돼요</span></div></div>';
+      qe('qCards').innerHTML = A + B + C + D + F + E;
       qe('qPickOn').checked = QS.pick;
       qe('qPickBody').classList.toggle('hidden', !QS.pick);
       if (QS.pick) qPickRender();
@@ -2294,6 +2343,7 @@
       qe('qAct').classList.remove('hidden');
       const inp = qe('qInput'); inp.value = ''; inp.readOnly = false; inp.focus();
       const hb = qe('qHintBtn'); hb.classList.toggle('hidden', !QS.hintBtn);
+      qe('qSpeakBtn').classList.toggle('hidden', !TTS_OK);
       qHud(); qTimerRender();
     }
     function qAsk(q) {
@@ -2403,7 +2453,7 @@
       if (ok && det) h += '<div class="qsub">' + det + '</div>';
       if (!ok && q.type === 'chain') h += '<div class="qans">정답 ' + q.ans.map(a => '<b>' + escapeHtml(a) + '</b>').join(' / ') + '</div>';
       h += qFull(q.w);
-      h += '<div class="qbtns"><button class="btn btn-light" onclick="qNext()">' + (last ? '결과 보기' : '다음') + ' ↵</button><button class="btn" onclick="copyToClipboard(' + jsAttr(q.w.word) + ')">복사</button></div>';
+      h += '<div class="qbtns"><button class="btn btn-light" onclick="qNext()">' + (last ? '결과 보기' : '다음') + ' ↵</button><button class="btn" onclick="copyToClipboard(' + jsAttr(q.w.word) + ')">복사</button>' + '</div>';
       const f = qe('qFb'); f.className = 'qfb ' + (ok ? 'good' : 'bad'); f.innerHTML = h;
     }
 
@@ -2436,7 +2486,7 @@
     // ---------- 결과 ----------
     function qEnd(why) {
       if (Q.phase === 'end') return;
-      Q.run = false; Q.phase = 'end';
+      Q.run = false; Q.phase = 'end'; ttsStop();
       const n = Q.res.length;
       if (!n) { qShow('setup'); renderSetup(); return; }
       const acc = Math.round(Q.ok / n * 100), el = Math.round((Date.now() - Q.t0) / 1000);
