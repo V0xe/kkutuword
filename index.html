@@ -744,6 +744,12 @@
     // =========================================================================
     // UTILITIES
     // =========================================================================
+    // 사전 등에서 복사한 글자에 섞이는 보이지 않는 문자(제로폭 공백, 소프트 하이픈, BOM 등)를 지우고
+    // 특수 공백(NBSP, 전각 공백 등)은 일반 공백으로 바꿔요.
+    const INVIS_RE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/g;
+    function cleanText(s) {
+      return String(s).normalize('NFC').replace(INVIS_RE, '').replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+    }
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
@@ -1455,9 +1461,9 @@
       e.preventDefault();
       const asRequest = !isAdmin;      // 일반 사용자는 요청만 보낼 수 있음
       if (!asRequest && !requireAdmin()) return;
-      let word = document.getElementById('newWord').value.trim();
+      let word = cleanText(document.getElementById('newWord').value).trim();
       const category = document.getElementById('newCategory').value;
-      const condition = document.getElementById('newCondition').value.trim();
+      const condition = cleanText(document.getElementById('newCondition').value).trim();
       if (!word) return;
       if (category === '공수') word = word.replace(/\s*\/\s*/g, '/');
       const id = editId;
@@ -1556,7 +1562,7 @@
 
     function updateExtendPreview() {
       const base = document.getElementById('extBase').value;
-      const text = document.getElementById('extText').value.trim().replace(/\s*\/\s*/g, '/');
+      const text = cleanText(document.getElementById('extText').value).trim().replace(/\s*\/\s*/g, '/');
       const info = document.getElementById('extLink');
       const lastCh = [...base].pop();
       document.getElementById('extPreview').innerHTML = chainHtml(text ? base + ' ' + text : base, true);
@@ -1578,7 +1584,7 @@
       const asRequest = !isAdmin;
       if (!asRequest && !requireAdmin()) return;
       const base = document.getElementById('extBase').value;
-      const text = document.getElementById('extText').value.trim().replace(/\s*\/\s*/g, '/');
+      const text = cleanText(document.getElementById('extText').value).trim().replace(/\s*\/\s*/g, '/');
       if (!base || !text) return;
 
       closeExtendModal();
@@ -1664,7 +1670,7 @@
     // 입력값 정리: 공백/슬래시 제거, 빈 칸·중복 제거, 빈 단계 제거
     function cleanDraft() {
       return chainDraft.groups
-        .map(g => [...new Set(g.map(t => t.replace(/[\s\/]/g, '')).filter(Boolean))])
+        .map(g => [...new Set(g.map(t => cleanText(t).replace(/[\s\/]/g, '')).filter(Boolean))])
         .filter(g => g.length);
     }
 
@@ -2121,7 +2127,13 @@
         return c;
       });
     }
-    function qNorm(s) { s = s.normalize('NFC').toLowerCase(); return QS.ignoreSpace ? s.replace(/\s+/g, '') : s.trim().replace(/\s+/g, ' '); }
+    // 정답 비교용 정규화: 정답·입력 양쪽에 똑같이 적용해서 눈에 안 보이는 차이로 틀리지 않게 해요.
+    function qNorm(s) {
+      s = cleanText(s).normalize('NFKC').replace(INVIS_RE, '').toLowerCase()
+        .replace(/[\u2018\u2019\u02BC`´]/g, "'").replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2010-\u2015\u2212]/g, '-').replace(/[·ㆍ•‧・]/g, '');
+      return QS.ignoreSpace ? s.replace(/\s+/g, '') : s.trim().replace(/\s+/g, ' ');
+    }
     function qShuf(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
     // ---------- 발음 (Web Speech API) ----------
