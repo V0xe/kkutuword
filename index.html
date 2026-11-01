@@ -342,8 +342,13 @@
         <input type="text" id="searchInput" class="search" placeholder="단어를 입력하면 즉시 필터링됩니다..." oninput="renderWordList()">
         <div class="options">
           <select id="sortMode" class="field" onchange="renderWordList()">
-            <option value="input">입력순</option>
+            <option value="input">입력순 (기본)</option>
+            <option value="recent">최근 추가순</option>
+            <option value="ko">가나다순</option>
+            <option value="koDesc">가나다 역순</option>
             <option value="len">글자 수 많은 순</option>
+            <option value="lenAsc">글자 수 적은 순</option>
+            <option value="unmem">미암기 먼저</option>
           </select>
           <input type="number" id="lengthFilter" class="field" style="width:130px" min="0" placeholder="글자 수 이상" oninput="renderWordList()">
           <label class="check"><input type="checkbox" id="unmemorizedOnly" onchange="renderWordList()">미암기만 보기</label>
@@ -374,11 +379,23 @@
             <h3><i style="font-style:normal">🖐</i>원하는 단어만 고르기</h3>
             <label class="check qchk"><input type="checkbox" id="qPickOn" onchange="qSet('pick', this.checked)">직접 고른 단어만 출제 <small>&nbsp;켜면 위의 범위 필터는 무시돼요</small></label>
             <div id="qPickBody" class="hidden">
+              <div class="qnote" style="background:var(--surface-2);color:var(--muted)">아래 조건으로 좁힌 뒤 <b>‘보이는 것 모두 선택’</b>을 누르면 한 번에 고를 수 있어요. 조건을 바꿔가며 여러 번 눌러서 합칠 수도 있어요.</div>
+              <div id="qPickFilter" class="pkf">
+                <div class="qrow"><span class="qlab">카테고리<small>비우면 전체</small></span><div class="seg" id="qfCats"></div></div>
+                <div class="qrow"><span class="qlab">시작 · 끝 글자<small>“○로 시작” · “○로 끝남”</small></span><div class="seg">
+                  <input id="qfStart" class="field" style="width:120px" autocomplete="off" placeholder="시작 글자" oninput="qFSet('start',this.value)">
+                  <input id="qfEnd" class="field" style="width:120px" autocomplete="off" placeholder="끝 글자" oninput="qFSet('end',this.value)"></div></div>
+                <div class="qrow"><span class="qlab">글자 종류</span><div class="seg" id="qfScript"></div></div>
+                <div class="qrow"><span class="qlab">암기 상태</span><div class="seg" id="qfMem"></div></div>
+                <div class="qrow"><span class="qlab">글자 수<small>0 = 제한 없음</small></span><div class="seg">최소 <input id="qfMin" type="number" class="field" style="width:84px" min="0" max="99" oninput="qFSet('min',parseInt(this.value,10)||0)"> ~ 최대 <input id="qfMax" type="number" class="field" style="width:84px" min="0" max="99" oninput="qFSet('max',parseInt(this.value,10)||0)"></div></div>
+              </div>
               <div class="seg">
-                <input id="qPickSearch" class="field" style="flex:1;min-width:160px" placeholder="단어 · 조건 검색…" oninput="qPickRender()">
+                <input id="qPickSearch" class="field" style="flex:1;min-width:160px" placeholder="포함 검색 (단어 · 조건)…" oninput="qPickRender()">
+                <button class="btn btn-sm" onclick="qFReset()">필터 초기화</button>
                 <button class="btn btn-sm" onclick="qPickBulk('all')">보이는 것 모두 선택</button>
                 <button class="btn btn-sm" onclick="qPickBulk('none')">보이는 것 해제</button>
                 <button class="btn btn-sm" onclick="qPickBulk('unmem')">미암기만 선택</button>
+                <button class="btn btn-sm" onclick="qPickBulk('clear')">선택 전부 비우기</button>
                 <span id="qPickCnt" class="count" style="margin-left:0"></span>
               </div>
               <div id="qPickList"></div>
@@ -1343,8 +1360,15 @@
 
       if (currentCat === '미션' && currentLetter) {
         rows.sort((a, b) => countChar(b.entry.word, currentLetter) - countChar(a.entry.word, currentLetter));
-      } else if (sortMode === 'len') {
-        rows.sort((a, b) => charLen(b.entry.word) - charLen(a.entry.word));
+      } else if (sortMode !== 'input') {
+        const ko = (a, b) => a.entry.word.localeCompare(b.entry.word, 'ko');
+        const len = r => charLen(r.entry.word);
+        if (sortMode === 'recent') rows.reverse();
+        else if (sortMode === 'ko') rows.sort(ko);
+        else if (sortMode === 'koDesc') rows.sort((a, b) => ko(b, a));
+        else if (sortMode === 'len') rows.sort((a, b) => len(b) - len(a) || ko(a, b));
+        else if (sortMode === 'lenAsc') rows.sort((a, b) => len(a) - len(b) || ko(a, b));
+        else if (sortMode === 'unmem') rows.sort((a, b) => (!!a.entry.memorized - !!b.entry.memorized));
       }
 
       const tbody = document.getElementById('wordTableBody');
@@ -2283,24 +2307,66 @@
       qe('qSum').innerHTML = '<b>' + c + '</b>문제 <span>(출제 가능 ' + n + '개)</span> · ' + t + (QS.lives ? ' · ♥' + QS.lives : '');
       qe('qStartBtn').disabled = !n;
     }
+    // ---- 직접 고르기: 조건 필터 ----
+    const QFDEF = { cats: [], start: '', end: '', script: 'all', mem: 'all', min: 0, max: 0 };
+    let QF = Object.assign({}, QFDEF);
+    const HANGUL_RE = /[가-힣ㄱ-ㅎㅏ-ㅣ]/, LATIN_RE = /[A-Za-z]/;
+    // 공수는 첫 단계의 선택지들이 '시작', 마지막 단계의 선택지들이 '끝'이에요.
+    function qHeads(w) { if (w.category === '공수') { const g = parseChain(w.word); if (g.length) return g[0]; } return [w.word]; }
+    function qTails(w) { if (w.category === '공수') { const g = parseChain(w.word); if (g.length) return g[g.length - 1]; } return [w.word]; }
+    function qPickMatch(w) {
+      const f = QF, k = x => cleanText(x).trim().toLowerCase();
+      if (f.cats.length && !f.cats.includes(w.category)) return false;
+      if (f.mem === 'no' && w.memorized) return false;
+      if (f.mem === 'yes' && !w.memorized) return false;
+      const n = charLen(w.word);
+      if (f.min && n < f.min) return false;
+      if (f.max && n > f.max) return false;
+      if (f.script !== 'all') {
+        const h = HANGUL_RE.test(w.word), l = LATIN_RE.test(w.word);
+        if (f.script === 'ko' && !(h && !l)) return false;
+        if (f.script === 'en' && !(l && !h)) return false;
+        if (f.script === 'hasEn' && !l) return false;
+        if (f.script === 'hasKo' && !h) return false;
+      }
+      const st = k(f.start), en = k(f.end);
+      if (st && !qHeads(w).some(t => k(t).startsWith(st))) return false;
+      if (en && !qTails(w).some(t => k(t).endsWith(en))) return false;
+      return true;
+    }
+    function qFSet(k, v) { QF[k] = v; qPickRender(); }
+    function qFCat(c) { const s = new Set(QF.cats); s.has(c) ? s.delete(c) : s.add(c); QF.cats = [...s]; qPickRender(); }
+    function qFReset() {
+      QF = Object.assign({}, QFDEF); qe('qPickSearch').value = '';
+      qe('qfStart').value = ''; qe('qfEnd').value = ''; qe('qfMin').value = ''; qe('qfMax').value = '';
+      qPickRender();
+    }
+    function qFSync() {
+      const seg = (id, key, opts) => { qe(id).innerHTML = opts.map(o => '<button type="button" class="opt' + (QF[key] === o[0] ? ' on' : '') + '" onclick="qFSet(\'' + key + '\',\'' + o[0] + '\')">' + o[1] + '</button>').join(''); };
+      qe('qfCats').innerHTML = ['장문', '공수', '미션', '예능'].map(c => '<button type="button" class="opt cat cat-' + c + (QF.cats.includes(c) ? ' on' : '') + '" onclick="qFCat(\'' + c + '\')">' + c + '</button>').join('');
+      seg('qfScript', 'script', [['all', '전체'], ['ko', '한글만'], ['en', '영단어만'], ['hasEn', '영문 포함'], ['hasKo', '한글 포함']]);
+      seg('qfMem', 'mem', [['all', '전체'], ['no', '미암기'], ['yes', '암기함']]);
+    }
     function qPickVis() {
       const s = qe('qPickSearch').value.trim().toLowerCase();
-      return words.filter(w => !s || w.word.toLowerCase().includes(s) || (w.condition || '').includes(s));
+      return words.filter(w => qPickMatch(w) && (!s || w.word.toLowerCase().includes(s) || (w.condition || '').includes(s)));
     }
     function qPickRender() {
+      qFSync();
       const ps = new Set(QS.picked);
       qe('qPickList').innerHTML = qPickVis().map(w => '<label class="pk"><input type="checkbox" ' + (ps.has(w.id) ? 'checked' : '') + ' onchange="qPick(' + jsAttr(w.id) + ',this.checked)"><span class="chip ' + getCategoryColorClass(w.category) + '">' + escapeHtml(w.category) + '</span><span>' + escapeHtml(w.word) + '</span>' + (w.condition ? '<span class="badge">' + escapeHtml(w.condition) + '</span>' : '') + '</label>').join('') || '<div class="empty">단어가 없어요.</div>';
-      qe('qPickCnt').textContent = QS.picked.length + '개 선택';
+      qe('qPickCnt').textContent = QS.picked.length + '개 선택 · 현재 조건에 ' + qPickVis().length + '개 보임';
     }
     function qPick(id, on) {
       const s = new Set(QS.picked); on ? s.add(id) : s.delete(id);
-      QS.picked = [...s]; qSave(QK, QS); qe('qPickCnt').textContent = QS.picked.length + '개 선택'; qSum();
+      QS.picked = [...s]; qSave(QK, QS); qe('qPickCnt').textContent = QS.picked.length + '개 선택 · 현재 조건에 ' + qPickVis().length + '개 보임'; qSum();
     }
     function qPickBulk(m) {
       const vis = qPickVis(), s = new Set(QS.picked);
       if (m === 'all') vis.forEach(w => s.add(w.id));
       else if (m === 'none') vis.forEach(w => s.delete(w.id));
-      else { s.clear(); vis.filter(w => !w.memorized).forEach(w => s.add(w.id)); }
+      else if (m === 'clear') s.clear();
+      else vis.filter(w => !w.memorized).forEach(w => s.add(w.id));
       QS.picked = [...s]; qSave(QK, QS); qPickRender(); qSum();
     }
 
