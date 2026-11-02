@@ -302,6 +302,28 @@
     .rrow .mine { color: var(--muted); font-size: 12px; }
 
     @media (max-width: 860px) { .qgrid { grid-template-columns: 1fr; } .rhead { flex-direction: column; align-items: flex-start; } }
+
+    /* ---------- 폴더 ---------- */
+    .folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+    .crumb { height: 30px; padding: 0 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+    .crumb:hover { border-color: #3a3f52; }
+    .crumb.is-active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+    .crumb-sep { color: var(--muted); }
+    .crumb-add { margin-left: auto; }
+    .folder-row { cursor: pointer; background: var(--surface-2); }
+    .folder-row:hover { background: #202436; }
+    .frow { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .fname { font-weight: 600; }
+    .fcount { color: var(--muted); }
+    .frow .actions { margin-left: auto; }
+    .fpath { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .mv-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .mv-box { width: min(420px, 100%); max-height: 80vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    .mv-title { font-weight: 600; margin-bottom: 10px; }
+    .mv-list { overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+    .mv-opt { text-align: left; padding: 8px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+    .mv-opt:hover { border-color: #3a3f52; }
+    .mv-opt.is-cur { opacity: .5; cursor: default; }
   </style>
 </head>
 <body>
@@ -339,6 +361,7 @@
       <div class="wrap">
         <div id="seedBanner" class="banner hidden"><div><b>DB가 비어 있어요.</b> 이 파일에 들어 있는 기본 단어 <span id="seedCount"></span>개를 Firestore에 올릴 수 있어요.</div><button class="btn btn-light" onclick="uploadSeed()">기본 단어 올리기</button></div>
         <p class="cat-note" id="catNote"></p>
+        <div id="folderBar" class="folder-bar hidden"></div>
         <input type="text" id="searchInput" class="search" placeholder="단어를 입력하면 즉시 필터링됩니다..." oninput="renderWordList()">
         <div class="options">
           <select id="sortMode" class="field" onchange="renderWordList()">
@@ -719,6 +742,9 @@
     let chainSig = null;       // 공수 단어가 바뀐 때만 마인드맵을 다시 그리기 위한 서명
     let currentCat = 'all';
     let currentLetter = null;
+    let folders = [];          // { id, name, category, parentId, order } — Firestore 'folders'
+    let folderCol = null;
+    let currentFolder = null;  // 지금 열어 둔 폴더 id (null = 맨 위)
     let treeLaidOut = false;
     let db = null;             // Firestore 인스턴스
     let auth = null;           // Firebase Auth (관리자 전용)
@@ -891,6 +917,7 @@
 
     function setCategory(cat) {
       currentCat = cat;
+      currentFolder = null;
       currentLetter = null;
       document.getElementById('sortMode').value = cat === '장문' ? 'len' : 'input';
       document.getElementById('catNote').innerHTML = CAT_NOTES[cat] || '';
@@ -1358,6 +1385,12 @@
         return true;
       });
 
+      if (currentFolder && !folders.some(f => f.id === currentFolder && f.category === currentCat)) currentFolder = null;
+      // 검색·필터 중에는 폴더 구분 없이 전부 보여주고, 평소에는 현재 폴더 안만 보여줌
+      const browsing = currentCat !== 'all' && !search && !minLen && !onlyUnmem && !(currentCat === '미션' && currentLetter);
+      if (browsing) rows = rows.filter(r => folderOf(r.entry) === currentFolder);
+      const subFolders = browsing ? childFolders(currentFolder, currentCat) : [];
+
       if (currentCat === '미션' && currentLetter) {
         rows.sort((a, b) => countChar(b.entry.word, currentLetter) - countChar(a.entry.word, currentLetter));
       } else if (sortMode !== 'input') {
@@ -1374,6 +1407,7 @@
       const tbody = document.getElementById('wordTableBody');
       tbody.innerHTML = '';
 
+      subFolders.forEach(f => tbody.appendChild(folderRowEl(f)));
       rows.forEach(({ entry }) => {
         const isMem = !!entry.memorized;
         const isChain = entry.category === '공수';
@@ -1392,13 +1426,14 @@
           ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가' + (isAdmin ? '' : ' 요청') + '</button>'
           : '<button class="btn" onclick="copyToClipboard(' + jsAttr(entry.word) + ')">복사</button>') +
           '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정' + (isAdmin ? '' : ' 요청') + '</button>' +
+          (isAdmin ? '<button class="btn" onclick="openMove(\'w\',' + jsAttr(entry.id) + ')">이동</button>' : '') +
           '<button class="btn btn-danger" onclick="' + (isAdmin ? 'deleteWord' : 'requestDelete') + '(' + jsAttr(entry.id) + ')">삭제' + (isAdmin ? '' : ' 요청') + '</button></div>';
 
         const tr = document.createElement('tr');
         if (isMem) tr.className = 'is-memo';
         tr.innerHTML =
           '<td><input type="checkbox" ' + (isMem ? 'checked' : '') + ' aria-label="암기 표시" onchange="toggleMemo(' + jsAttr(entry.id) + ')"></td>' +
-          '<td class="cell-word">' + wordCell + '</td>' +
+          '<td class="cell-word">' + wordCell + folderTag(entry, browsing) + '</td>' +
           '<td><span class="chip ' + getCategoryColorClass(entry.category) + '">' + escapeHtml(entry.category) + '</span></td>' +
           '<td>' + lenCell + '</td>' +
           '<td>' + (isMission ? conditionBadges(entry.word, conds) : '') + '</td>' +
@@ -1407,11 +1442,143 @@
       });
 
       document.getElementById('listCount').textContent = rows.length + ' / ' + total;
-      document.getElementById('listTableContainer').classList.toggle('hidden', rows.length === 0);
+      document.getElementById('listTableContainer').classList.toggle('hidden', rows.length + subFolders.length === 0);
       document.getElementById('listEmpty').textContent = dbLoading ? '단어를 불러오는 중…'
-        : (total === 0 ? '아직 등록된 단어가 없어요.' : '조건에 맞는 단어가 없어요.');
-      document.getElementById('listEmpty').classList.toggle('hidden', rows.length !== 0);
+        : (total === 0 ? '아직 등록된 단어가 없어요.' : browsing ? '이 폴더는 비어 있어요.' : '조건에 맞는 단어가 없어요.');
+      document.getElementById('listEmpty').classList.toggle('hidden', rows.length + subFolders.length !== 0);
       renderLetterBar();
+      renderFolderBar();
+    }
+
+    // =========================================================================
+    // 폴더 (폴더 속 폴더 가능) — 카테고리 탭마다 따로, 만들기/이동/삭제는 관리자만
+    // =========================================================================
+    function parentOf(f) {
+      return f.parentId && folders.some(x => x.id === f.parentId && x.category === f.category) ? f.parentId : null;
+    }
+    function folderOf(w) {
+      return w.folderId && folders.some(f => f.id === w.folderId && f.category === w.category) ? w.folderId : null;
+    }
+    function childFolders(pid, cat) {
+      return folders.filter(f => f.category === cat && parentOf(f) === (pid || null))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    }
+    function folderPath(id) {
+      const out = [];
+      for (let f = folders.find(x => x.id === id); f && out.length < 50; f = f.parentId ? folders.find(x => x.id === f.parentId) : null) out.unshift(f);
+      return out;
+    }
+    function descendantIds(id) {
+      const ids = [id];
+      for (let i = 0; i < ids.length; i++) folders.forEach(f => { if (f.parentId === ids[i] && !ids.includes(f.id)) ids.push(f.id); });
+      return ids;
+    }
+    function countWords(id) {
+      const set = new Set(descendantIds(id));
+      return words.filter(w => set.has(folderOf(w))).length;
+    }
+    function folderTag(entry, browsing) {
+      const id = browsing ? null : folderOf(entry);
+      return id ? '<div class="fpath">📁 ' + folderPath(id).map(f => escapeHtml(f.name)).join(' › ') + '</div>' : '';
+    }
+    function openFolder(id) { currentFolder = id || null; renderWordList(); }
+
+    function renderFolderBar() {
+      const bar = document.getElementById('folderBar');
+      bar.classList.toggle('hidden', currentCat === 'all');
+      if (currentCat === 'all') return;
+      const path = folderPath(currentFolder);
+      let h = '<button class="crumb' + (currentFolder ? '' : ' is-active') + '" onclick="openFolder(null)">📁 ' + escapeHtml(currentCat) + '</button>';
+      path.forEach((f, i) => {
+        h += '<span class="crumb-sep">›</span><button class="crumb' + (i === path.length - 1 ? ' is-active' : '') + '" onclick="openFolder(' + jsAttr(f.id) + ')">' + escapeHtml(f.name) + '</button>';
+      });
+      if (isAdmin) h += '<button class="btn btn-light crumb-add" onclick="newFolder()">＋ 새 폴더</button>';
+      bar.innerHTML = h;
+    }
+
+    function folderRowEl(f) {
+      const sub = childFolders(f.id, f.category).length;
+      const tr = document.createElement('tr');
+      tr.className = 'folder-row';
+      tr.onclick = () => openFolder(f.id);
+      const a = jsAttr(f.id);
+      tr.innerHTML = '<td colspan="6"><div class="frow"><span class="fname">📁 ' + escapeHtml(f.name) + '</span>' +
+        '<small class="fcount">' + (sub ? '폴더 ' + sub + ' · ' : '') + '단어 ' + countWords(f.id) + '</small>' +
+        (isAdmin ? '<div class="actions" onclick="event.stopPropagation()">' +
+          '<button class="btn" onclick="renameFolder(' + a + ')">이름 수정</button>' +
+          '<button class="btn" onclick="openMove(\'f\',' + a + ')">이동</button>' +
+          '<button class="btn btn-danger" onclick="deleteFolder(' + a + ')">삭제</button></div>' : '') +
+        '</div></td>';
+      return tr;
+    }
+
+    function askFolderName(label, init, pid, cat, selfId) {
+      const name = (prompt(label, init || '') || '').trim();
+      if (!name) return null;
+      if (childFolders(pid, cat).some(f => f.name === name && f.id !== selfId)) { showToast('같은 이름의 폴더가 이미 있어요.'); return null; }
+      return name;
+    }
+    async function newFolder() {
+      if (!requireAdmin() || !folderCol) return;
+      const name = askFolderName('새 폴더 이름', '', currentFolder, currentCat);
+      if (!name) return;
+      try { await folderCol.add({ name, category: currentCat, parentId: currentFolder || null, order: Date.now() }); showToast('폴더를 만들었어요.'); }
+      catch (err) { dbError(err); }
+    }
+    async function renameFolder(id) {
+      if (!requireAdmin() || !folderCol) return;
+      const f = folders.find(x => x.id === id);
+      if (!f) return;
+      const name = askFolderName('폴더 이름', f.name, parentOf(f), f.category, f.id);
+      if (!name || name === f.name) return;
+      try { await folderCol.doc(id).update({ name }); } catch (err) { dbError(err); }
+    }
+    async function deleteFolder(id) {
+      if (!requireAdmin() || !folderCol) return;
+      const f = folders.find(x => x.id === id);
+      if (!f || !confirm('폴더 ‘' + f.name + '’ 을(를) 삭제할까요?\n안에 있는 단어와 폴더는 지워지지 않고 상위로 옮겨져요.')) return;
+      const up = parentOf(f), del = firebase.firestore.FieldValue.delete();
+      const ops = [];
+      folders.filter(x => x.parentId === id).forEach(x => ops.push(b => b.update(folderCol.doc(x.id), { parentId: up })));
+      words.filter(w => w.folderId === id).forEach(w => ops.push(b => b.update(col.doc(w.id), { folderId: up || del })));
+      ops.push(b => b.delete(folderCol.doc(id)));
+      try {
+        for (let i = 0; i < ops.length; i += 400) { const b = db.batch(); ops.slice(i, i + 400).forEach(o => o(b)); await b.commit(); }
+        if (currentFolder === id) currentFolder = up;
+        showToast('폴더를 삭제했어요.');
+      } catch (err) { dbError(err); }
+    }
+
+    // ---- 이동 (단어 / 폴더) ----
+    let mvKind = null, mvId = null;
+    function openMove(kind, id) {
+      if (!requireAdmin() || !folderCol) return;
+      const item = (kind === 'w' ? words : folders).find(x => x.id === id);
+      if (!item) return;
+      const banned = new Set(kind === 'f' ? descendantIds(id) : []);
+      const cur = kind === 'w' ? folderOf(item) : parentOf(item);
+      mvKind = kind; mvId = id;
+      const opt = (fid, name, depth) => '<button class="mv-opt' + (cur === fid ? ' is-cur' : '') + '" style="padding-left:' + (14 + depth * 18) + 'px"' +
+        (cur === fid ? '' : ' onclick="doMove(' + (fid ? jsAttr(fid) : 'null') + ')"') + '>📁 ' + escapeHtml(name) + '</button>';
+      let list = opt(null, item.category + ' (맨 위)', 0);
+      (function walk(pid, depth) {
+        childFolders(pid, item.category).forEach(f => { if (banned.has(f.id)) return; list += opt(f.id, f.name, depth); walk(f.id, depth + 1); });
+      })(null, 1);
+      const label = kind === 'w' ? '‘' + escapeHtml(item.word) + '’' : '폴더 ‘' + escapeHtml(item.name) + '’';
+      const ov = document.createElement('div');
+      ov.id = 'mvOverlay'; ov.className = 'mv-overlay';
+      ov.onclick = e => { if (e.target === ov) closeMove(); };
+      ov.innerHTML = '<div class="mv-box"><div class="mv-title">' + label + ' 을(를) 어디로 옮길까요?</div><div class="mv-list">' + list + '</div>' +
+        '<button class="btn btn-ghost" style="margin-top:12px" onclick="closeMove()">취소</button></div>';
+      document.body.appendChild(ov);
+    }
+    function closeMove() { const ov = document.getElementById('mvOverlay'); if (ov) ov.remove(); }
+    async function doMove(target) {
+      try {
+        if (mvKind === 'w') await col.doc(mvId).update({ folderId: target || firebase.firestore.FieldValue.delete() });
+        else await folderCol.doc(mvId).update({ parentId: target || null });
+        closeMove(); showToast('옮겼어요.');
+      } catch (err) { dbError(err); }
     }
 
     async function toggleMemo(id) {
@@ -1527,6 +1694,7 @@
         } else {
           const entry = { category, word, order: Date.now(), memorized: false };
           if (category === '미션' && condition) entry.condition = condition;
+          if (isAdmin && currentFolder && category === currentCat) entry.folderId = currentFolder;
           await col.add(entry);
           showToast('단어가 추가되었습니다!');
         }
@@ -2059,6 +2227,11 @@
         firebase.initializeApp(firebaseConfig);
         db = firebase.firestore();
         col = db.collection('words');
+        folderCol = db.collection('folders');
+        folderCol.orderBy('order').onSnapshot(snap => {
+          folders = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+          renderWordList();
+        }, err => { console.error(err); folders = []; });
         try { auth = firebase.auth(); watchAuth(); } catch (e) { console.error(e); }
         col.orderBy('order').onSnapshot(snap => {
           dbLoading = false;
