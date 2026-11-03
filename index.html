@@ -324,6 +324,41 @@
     .mv-opt { text-align: left; padding: 8px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
     .mv-opt:hover { border-color: #3a3f52; }
     .mv-opt.is-cur { opacity: .5; cursor: default; }
+
+    /* ---------- 대량 이동 ---------- */
+    .crumb-tools { margin-left: auto; display: flex; gap: 6px; }
+    .bk-box { width: min(720px, 100%); }
+    .bk-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .bk-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .bk-list { flex: 1; min-height: 120px; border: 1px solid var(--line); border-radius: 8px; }
+    .bk-cnt { color: var(--muted); font-size: 13px; margin: 8px 0; }
+    .bk-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .bk-foot .field { flex: 1; min-width: 160px; }
+
+    /* ---------- 등장 애니메이션 ---------- */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+    @keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+    .head { animation: fadeDown .5s ease both; }
+    .tabbar .tab { animation: fadeUp .4s ease both; }
+    .tabbar .tab:nth-child(2) { animation-delay: 90ms; }
+    .tabbar .tab:nth-child(3) { animation-delay: 135ms; }
+    .tabbar .tab:nth-child(4) { animation-delay: 180ms; }
+    .tabbar .tab:nth-child(5) { animation-delay: 225ms; }
+    .tabbar .tab:nth-child(6) { animation-delay: 270ms; }
+    .tabbar .tab:nth-child(7) { animation-delay: 315ms; }
+    .tabbar .tab:nth-child(8) { animation-delay: 360ms; }
+    .view.is-active { animation: fadeUp .35s ease both; }
+    .row-in { animation: fadeUp .35s ease both; }
+    .banner, .empty, .folder-bar, .letters, .cat-note { animation: fadeIn .4s ease both; }
+    .modal:not(.hidden) { animation: fadeIn .2s ease both; }
+    .modal:not(.hidden) .modal-panel { animation: popIn .28s cubic-bezier(.2, .8, .2, 1) both; }
+    .mv-overlay { animation: fadeIn .2s ease both; }
+    .mv-box { animation: popIn .28s cubic-bezier(.2, .8, .2, 1) both; }
+    .status[data-state="connecting"]::before { animation: dotPulse 1.1s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
@@ -744,6 +779,7 @@
     let currentLetter = null;
     let folders = [];          // { id, name, category, parentId, order } — Firestore 'folders'
     let folderCol = null;
+    let rowAnim = true;        // true 일 때만 다음 목록 그리기에서 행 등장 애니메이션 (체크·검색 때 깜빡이지 않게)
     let currentFolder = null;  // 지금 열어 둔 폴더 id (null = 맨 위)
     let treeLaidOut = false;
     let db = null;             // Firestore 인스턴스
@@ -918,6 +954,7 @@
     function setCategory(cat) {
       currentCat = cat;
       currentFolder = null;
+      rowAnim = true;
       currentLetter = null;
       document.getElementById('sortMode').value = cat === '장문' ? 'len' : 'input';
       document.getElementById('catNote').innerHTML = CAT_NOTES[cat] || '';
@@ -1407,8 +1444,9 @@
       const tbody = document.getElementById('wordTableBody');
       tbody.innerHTML = '';
 
-      subFolders.forEach(f => tbody.appendChild(folderRowEl(f)));
-      rows.forEach(({ entry }) => {
+      const stag = (el, i) => { if (rowAnim) { el.classList.add('row-in'); el.style.animationDelay = Math.min(i, 14) * 25 + 'ms'; } return el; };
+      subFolders.forEach((f, fi) => tbody.appendChild(stag(folderRowEl(f), fi)));
+      rows.forEach(({ entry }, ri) => {
         const isMem = !!entry.memorized;
         const isChain = entry.category === '공수';
         const isMission = entry.category === '미션';
@@ -1431,6 +1469,7 @@
 
         const tr = document.createElement('tr');
         if (isMem) tr.className = 'is-memo';
+        stag(tr, ri + subFolders.length);
         tr.innerHTML =
           '<td><input type="checkbox" ' + (isMem ? 'checked' : '') + ' aria-label="암기 표시" onchange="toggleMemo(' + jsAttr(entry.id) + ')"></td>' +
           '<td class="cell-word">' + wordCell + folderTag(entry, browsing) + '</td>' +
@@ -1448,6 +1487,7 @@
       document.getElementById('listEmpty').classList.toggle('hidden', rows.length + subFolders.length !== 0);
       renderLetterBar();
       renderFolderBar();
+      rowAnim = false;
     }
 
     // =========================================================================
@@ -1481,7 +1521,7 @@
       const id = browsing ? null : folderOf(entry);
       return id ? '<div class="fpath">📁 ' + folderPath(id).map(f => escapeHtml(f.name)).join(' › ') + '</div>' : '';
     }
-    function openFolder(id) { currentFolder = id || null; renderWordList(); }
+    function openFolder(id) { currentFolder = id || null; rowAnim = true; renderWordList(); }
 
     function renderFolderBar() {
       const bar = document.getElementById('folderBar');
@@ -1492,7 +1532,7 @@
       path.forEach((f, i) => {
         h += '<span class="crumb-sep">›</span><button class="crumb' + (i === path.length - 1 ? ' is-active' : '') + '" onclick="openFolder(' + jsAttr(f.id) + ')">' + escapeHtml(f.name) + '</button>';
       });
-      if (isAdmin) h += '<button class="btn btn-light crumb-add" onclick="newFolder()">＋ 새 폴더</button>';
+      if (isAdmin) h += '<span class="crumb-tools"><button class="btn" onclick="openBulk()">☑ 대량 이동</button><button class="btn btn-light" onclick="newFolder()">＋ 새 폴더</button></span>';
       bar.innerHTML = h;
     }
 
@@ -1578,6 +1618,95 @@
         if (mvKind === 'w') await col.doc(mvId).update({ folderId: target || firebase.firestore.FieldValue.delete() });
         else await folderCol.doc(mvId).update({ parentId: target || null });
         closeMove(); showToast('옮겼어요.');
+      } catch (err) { dbError(err); }
+    }
+
+    // ---- 대량 이동: 조건으로 좁히고 → 체크 → 한 번에 폴더로 ----
+    const BKDEF = { q: '', start: '', end: '', script: 'all', mem: 'all', min: 0, max: 0, loc: 'out' };
+    let BK = null, bkSel = new Set(), bkVisN = 0;
+    function bkMatch(w) {
+      const f = BK, k = x => cleanText(x).trim().toLowerCase(), fid = folderOf(w);
+      if (w.category !== currentCat) return false;
+      if (f.loc === 'out' && fid) return false;
+      if (f.loc === 'here' && fid !== currentFolder) return false;
+      if (f.mem === 'no' && w.memorized) return false;
+      if (f.mem === 'yes' && !w.memorized) return false;
+      const n = charLen(w.word);
+      if (f.min && n < f.min) return false;
+      if (f.max && n > f.max) return false;
+      if (f.script !== 'all') {
+        const h = HANGUL_RE.test(w.word), l = LATIN_RE.test(w.word);
+        if (f.script === 'ko' && !(h && !l)) return false;
+        if (f.script === 'en' && !(l && !h)) return false;
+        if (f.script === 'hasEn' && !l) return false;
+        if (f.script === 'hasKo' && !h) return false;
+      }
+      const st = k(f.start), en = k(f.end), s = k(f.q);
+      if (st && !qHeads(w).some(x => k(x).startsWith(st))) return false;
+      if (en && !qTails(w).some(x => k(x).endsWith(en))) return false;
+      if (s && !k(w.word).includes(s) && !(w.condition || '').includes(s)) return false;
+      return true;
+    }
+    function bkSet(key, v) { BK[key] = v; renderBkList(); }
+    function bkCount() { document.getElementById('bkCnt').textContent = bkSel.size + '개 선택 · 현재 조건에 ' + bkVisN + '개 보임'; }
+    function renderBkList() {
+      const vis = words.filter(bkMatch);
+      bkVisN = vis.length;
+      document.getElementById('bkList').innerHTML = vis.length ? vis.map(w => {
+        const fid = folderOf(w);
+        return '<label class="pk"><input type="checkbox" ' + (bkSel.has(w.id) ? 'checked' : '') + ' onchange="bkPick(' + jsAttr(w.id) + ',this.checked)"><span>' + escapeHtml(w.word) + '</span>' +
+          (w.condition ? '<span class="badge">' + escapeHtml(w.condition) + '</span>' : '') +
+          (fid ? '<small class="fcount">📁 ' + folderPath(fid).map(f => escapeHtml(f.name)).join(' › ') + '</small>' : '') + '</label>';
+      }).join('') : '<div class="empty" style="padding:18px">조건에 맞는 단어가 없어요.</div>';
+      bkCount();
+    }
+    function bkPick(id, on) { on ? bkSel.add(id) : bkSel.delete(id); bkCount(); }
+    function bkAll(m) {
+      const vis = words.filter(bkMatch);
+      if (m === 'all') vis.forEach(w => bkSel.add(w.id));
+      else if (m === 'none') vis.forEach(w => bkSel.delete(w.id));
+      else bkSel.clear();
+      renderBkList();
+    }
+    function openBulk() {
+      if (!requireAdmin() || !folderCol || currentCat === 'all') return;
+      BK = Object.assign({}, BKDEF); bkSel = new Set();
+      const sel = (key, opts) => '<select class="field" onchange="bkSet(\'' + key + '\',this.value)">' + opts.map(o => '<option value="' + o[0] + '"' + (BK[key] === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
+      let dest = '<option value="">' + escapeHtml(currentCat) + ' (맨 위)</option>';
+      (function walk(pid, d) {
+        childFolders(pid, currentCat).forEach(f => {
+          dest += '<option value="' + f.id + '"' + (f.id === currentFolder ? ' selected' : '') + '>' + '\u00a0\u00a0'.repeat(d) + '📁 ' + escapeHtml(f.name) + '</option>';
+          walk(f.id, d + 1);
+        });
+      })(null, 0);
+      const inp = (ph, key, num) => '<input class="field" ' + (num ? 'type="number" min="0" ' : '') + 'placeholder="' + ph + '" autocomplete="off" oninput="bkSet(\'' + key + '\',' + (num ? 'parseInt(this.value,10)||0' : 'this.value') + ')">';
+      closeMove();
+      const ov = document.createElement('div');
+      ov.id = 'mvOverlay'; ov.className = 'mv-overlay';
+      ov.onclick = e => { if (e.target === ov) closeMove(); };
+      ov.innerHTML = '<div class="mv-box bk-box"><div class="mv-title">' + escapeHtml(currentCat) + ' 단어 대량 이동</div>' +
+        '<div class="bk-filters">' + inp('검색 (단어/조건)', 'q') + inp('시작 글자', 'start') + inp('끝 글자', 'end') +
+        sel('script', [['all', '글자 종류 전체'], ['ko', '한글만'], ['en', '영단어만'], ['hasEn', '영문 포함'], ['hasKo', '한글 포함']]) +
+        sel('mem', [['all', '암기 전체'], ['no', '미암기'], ['yes', '암기함']]) +
+        sel('loc', [['out', '폴더 밖 단어만'], ['here', '현재 폴더 안만'], ['all', '모든 위치']]) +
+        inp('최소 글자 수', 'min', true) + inp('최대 글자 수', 'max', true) + '</div>' +
+        '<div class="bk-tools"><button class="btn" onclick="bkAll(\'all\')">보이는 것 모두 선택</button><button class="btn" onclick="bkAll(\'none\')">보이는 것 해제</button><button class="btn" onclick="bkAll(\'clear\')">선택 비우기</button></div>' +
+        '<div id="bkList" class="mv-list bk-list"></div><div id="bkCnt" class="bk-cnt"></div>' +
+        '<div class="bk-foot"><select id="bkDest" class="field">' + dest + '</select><button class="btn btn-light" onclick="bkMove()">선택한 단어 이동</button><button class="btn btn-ghost" onclick="closeMove()">닫기</button></div></div>';
+      document.body.appendChild(ov);
+      renderBkList();
+    }
+    async function bkMove() {
+      if (!bkSel.size) { showToast('옮길 단어를 먼저 선택하세요.'); return; }
+      const dest = document.getElementById('bkDest').value, del = firebase.firestore.FieldValue.delete();
+      const ids = [...bkSel].filter(id => words.some(w => w.id === id));
+      try {
+        for (let i = 0; i < ids.length; i += 400) {
+          const b = db.batch();
+          ids.slice(i, i + 400).forEach(id => b.update(col.doc(id), { folderId: dest || del }));
+          await b.commit();
+        }
+        closeMove(); showToast(ids.length + '개를 옮겼어요.');
       } catch (err) { dbError(err); }
     }
 
@@ -2234,6 +2363,7 @@
         }, err => { console.error(err); folders = []; });
         try { auth = firebase.auth(); watchAuth(); } catch (e) { console.error(e); }
         col.orderBy('order').onSnapshot(snap => {
+          if (dbLoading) rowAnim = true;
           dbLoading = false;
           readOnly = false;
           words = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
