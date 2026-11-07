@@ -788,6 +788,12 @@
     let unsubReq = null;
     let requests = [];         // 대기 중인 추가 요청 (관리자만 받아옴)
     const busyReq = new Set();
+    // 암기 체크는 이 브라우저에만 저장돼요. (DB 의 memorized 값은 모든 사용자가 공유하는 값이라 더 이상 쓰지 않아요)
+    const MEMO_KEY = 'kkuko_memo_v1';
+    let memoSet = new Set((function () { try { const a = JSON.parse(localStorage.getItem(MEMO_KEY)); return Array.isArray(a) ? a : []; } catch (e) { return []; } })());
+    function isMemo(w) { return memoSet.has(w.id); }
+    function saveMemo() { try { localStorage.setItem(MEMO_KEY, JSON.stringify([...memoSet])); } catch (e) {} }
+    let qSrc = null;           // 폴더 퀴즈 등 '다시 하기' 때 같은 단어들로 다시 시작하기 위한 기억
 
     // Canvas state
     let canvasNodes = [];
@@ -813,7 +819,7 @@
     const ROLE_COLORS = { attack: '#fb7185', defense: '#a78bfa', solo: '#8a90a2' };
 
     const CAT_NOTES = {
-      all: '모든 단어를 모아 봐요. 외운 단어는 왼쪽 체크박스로 표시하세요.',
+      all: '모든 단어를 모아 봐요. 외운 단어는 왼쪽 체크박스로 표시하세요. (체크는 이 기기에만 저장돼요)',
       '장문': '길이가 긴 단어예요. 길게 받아칠수록 점수를 더 받아요. <b>글자 수 많은 순</b>으로 정렬돼 있어요.',
       '공수': '잇기 어려운 <b class="k-atk">공격 단어</b>와 그걸 받아치는 <b class="k-def">수비 단어</b>예요. <b>→</b> 는 이어지는 순서, <b>/</b> 는 같은 자리에서 고를 수 있는 단어, <u>밑줄 글자</u>는 서로 이어지는 글자예요. 단어를 누르면 복사되고, <b>＋ 이어 추가</b>로 원래 있던 세트 뒤에 단어를 더 이을 수 있어요.',
       '미션': '화면 구석의 미션 글자(가나다라마바사아자차카타파하, a~z)가 많이 들어갈수록 점수를 더 받아요. <b class="k-hl">색으로 강조된 글자</b>가 미션 글자예요. 위의 글자 버튼으로 골라 볼 수 있어요.',
@@ -1416,7 +1422,7 @@
         rows = rows.filter(r => parseConditions(r.entry.condition).some(c => c.ch === currentLetter));
       }
       rows = rows.filter(r => {
-        if (onlyUnmem && r.entry.memorized) return false;
+        if (onlyUnmem && isMemo(r.entry)) return false;
         if (r.entry.word.toLowerCase().indexOf(search) === -1) return false;
         if (minLen > 0 && charLen(r.entry.word) < minLen) return false;
         return true;
@@ -1438,7 +1444,7 @@
         else if (sortMode === 'koDesc') rows.sort((a, b) => ko(b, a));
         else if (sortMode === 'len') rows.sort((a, b) => len(b) - len(a) || ko(a, b));
         else if (sortMode === 'lenAsc') rows.sort((a, b) => len(a) - len(b) || ko(a, b));
-        else if (sortMode === 'unmem') rows.sort((a, b) => (!!a.entry.memorized - !!b.entry.memorized));
+        else if (sortMode === 'unmem') rows.sort((a, b) => (isMemo(a.entry) - isMemo(b.entry)));
       }
 
       const tbody = document.getElementById('wordTableBody');
@@ -1447,7 +1453,7 @@
       const stag = (el, i) => { if (rowAnim) { el.classList.add('row-in'); el.style.animationDelay = Math.min(i, 14) * 25 + 'ms'; } return el; };
       subFolders.forEach((f, fi) => tbody.appendChild(stag(folderRowEl(f), fi)));
       rows.forEach(({ entry }, ri) => {
-        const isMem = !!entry.memorized;
+        const isMem = isMemo(entry);
         const isChain = entry.category === '공수';
         const isMission = entry.category === '미션';
         const conds = isMission ? parseConditions(entry.condition) : [];
@@ -1464,7 +1470,7 @@
           ? '<button class="btn" onclick="openExtendModal(' + jsAttr(entry.id) + ')">＋ 이어 추가' + (isAdmin ? '' : ' 요청') + '</button>'
           : '<button class="btn" onclick="copyToClipboard(' + jsAttr(entry.word) + ')">복사</button>') +
           '<button class="btn" onclick="' + (isChain ? 'openChainEditor' : 'openEditModal') + '(' + jsAttr(entry.id) + ')">수정' + (isAdmin ? '' : ' 요청') + '</button>' +
-          (isAdmin ? '<button class="btn" onclick="openMove(\'w\',' + jsAttr(entry.id) + ')">이동</button>' : '') +
+          '<button class="btn" onclick="openMove(\'w\',' + jsAttr(entry.id) + ')">이동' + (isAdmin ? '' : ' 요청') + '</button>' +
           '<button class="btn btn-danger" onclick="' + (isAdmin ? 'deleteWord' : 'requestDelete') + '(' + jsAttr(entry.id) + ')">삭제' + (isAdmin ? '' : ' 요청') + '</button></div>';
 
         const tr = document.createElement('tr');
@@ -1522,6 +1528,24 @@
       return id ? '<div class="fpath">📁 ' + folderPath(id).map(f => escapeHtml(f.name)).join(' › ') + '</div>' : '';
     }
     function openFolder(id) { currentFolder = id || null; rowAnim = true; renderWordList(); }
+    // 지금 보고 있는 폴더(하위 폴더 포함)의 단어들. 맨 위라면 그 카테고리 전체
+    function hereWords() {
+      if (currentCat === 'all') return [];
+      const set = currentFolder ? new Set(descendantIds(currentFolder)) : null;
+      return words.filter(w => w.category === currentCat && (!set || set.has(folderOf(w))));
+    }
+    function quizHere() {
+      let pool = hereWords();
+      if (!pool.length) { showToast('이 폴더에는 단어가 없어요.'); return; }
+      let note = '';
+      if (QS.mem === 'no') { pool = pool.filter(w => !isMemo(w)); note = ' (미암기만)'; }
+      else if (QS.mem === 'yes') { pool = pool.filter(w => isMemo(w)); note = ' (암기한 것만)'; }
+      if (!pool.length) { showToast('퀴즈 설정의 암기 상태 조건 때문에 출제할 단어가 없어요.'); return; }
+      if (Q.run && !confirm('진행 중인 퀴즈를 그만하고 새로 시작할까요?')) return;
+      setActiveTab('tab-quiz'); setView('quiz');
+      qStart(pool, true);
+      showToast('단어 ' + pool.length + '개로 퀴즈 시작' + note);
+    }
 
     function renderFolderBar() {
       const bar = document.getElementById('folderBar');
@@ -1532,7 +1556,8 @@
       path.forEach((f, i) => {
         h += '<span class="crumb-sep">›</span><button class="crumb' + (i === path.length - 1 ? ' is-active' : '') + '" onclick="openFolder(' + jsAttr(f.id) + ')">' + escapeHtml(f.name) + '</button>';
       });
-      if (isAdmin) h += '<span class="crumb-tools"><button class="btn" onclick="openBulk()">☑ 대량 이동</button><button class="btn btn-light" onclick="newFolder()">＋ 새 폴더</button></span>';
+      h += '<span class="crumb-tools"><button class="btn btn-ok" onclick="quizHere()" title="지금 보고 있는 폴더(하위 폴더 포함)의 단어로 바로 퀴즈를 시작해요">🧠 ' + (currentFolder ? '이 폴더' : escapeHtml(currentCat)) + ' 퀴즈 (' + hereWords().length + ')</button>' +
+        (isAdmin ? '<button class="btn" onclick="openBulk()">☑ 대량 이동</button><button class="btn btn-light" onclick="newFolder()">＋ 새 폴더</button>' : '') + '</span>';
       bar.innerHTML = h;
     }
 
@@ -1544,10 +1569,10 @@
       const a = jsAttr(f.id);
       tr.innerHTML = '<td colspan="6"><div class="frow"><span class="fname">📁 ' + escapeHtml(f.name) + '</span>' +
         '<small class="fcount">' + (sub ? '폴더 ' + sub + ' · ' : '') + '단어 ' + countWords(f.id) + '</small>' +
-        (isAdmin ? '<div class="actions" onclick="event.stopPropagation()">' +
-          '<button class="btn" onclick="renameFolder(' + a + ')">이름 수정</button>' +
-          '<button class="btn" onclick="openMove(\'f\',' + a + ')">이동</button>' +
-          '<button class="btn btn-danger" onclick="deleteFolder(' + a + ')">삭제</button></div>' : '') +
+        '<div class="actions" onclick="event.stopPropagation()">' +
+          (isAdmin ? '<button class="btn" onclick="renameFolder(' + a + ')">이름 수정</button>' : '') +
+          '<button class="btn" onclick="openMove(\'f\',' + a + ')">이동' + (isAdmin ? '' : ' 요청') + '</button>' +
+          (isAdmin ? '<button class="btn btn-danger" onclick="deleteFolder(' + a + ')">삭제</button>' : '') + '</div>' +
         '</div></td>';
       return tr;
     }
@@ -1592,7 +1617,7 @@
     // ---- 이동 (단어 / 폴더) ----
     let mvKind = null, mvId = null;
     function openMove(kind, id) {
-      if (!requireAdmin() || !folderCol) return;
+      if (!folderCol) return;
       const item = (kind === 'w' ? words : folders).find(x => x.id === id);
       if (!item) return;
       const banned = new Set(kind === 'f' ? descendantIds(id) : []);
@@ -1608,12 +1633,21 @@
       const ov = document.createElement('div');
       ov.id = 'mvOverlay'; ov.className = 'mv-overlay';
       ov.onclick = e => { if (e.target === ov) closeMove(); };
-      ov.innerHTML = '<div class="mv-box"><div class="mv-title">' + label + ' 을(를) 어디로 옮길까요?</div><div class="mv-list">' + list + '</div>' +
+      ov.innerHTML = '<div class="mv-box"><div class="mv-title">' + label + ' 을(를) 어디로 옮길까요?' + (isAdmin ? '' : ' <small style="color:var(--muted)">(관리자가 승인하면 반영돼요)</small>') + '</div><div class="mv-list">' + list + '</div>' +
         '<button class="btn btn-ghost" style="margin-top:12px" onclick="closeMove()">취소</button></div>';
       document.body.appendChild(ov);
     }
     function closeMove() { const ov = document.getElementById('mvOverlay'); if (ov) ov.remove(); }
     async function doMove(target) {
+      if (!isAdmin) {   // 일반 사용자는 이동 '요청'만 보내요
+        const item = (mvKind === 'w' ? words : folders).find(x => x.id === mvId);
+        const kind = mvKind, id = mvId;
+        closeMove();
+        if (!item) return;
+        await submitRequest({ type: 'move', kind, category: item.category, word: kind === 'w' ? item.word : item.name, targetId: id, destId: target || null });
+        return;
+      }
+      if (!requireAdmin()) return;
       try {
         if (mvKind === 'w') await col.doc(mvId).update({ folderId: target || firebase.firestore.FieldValue.delete() });
         else await folderCol.doc(mvId).update({ parentId: target || null });
@@ -1629,8 +1663,8 @@
       if (w.category !== currentCat) return false;
       if (f.loc === 'out' && fid) return false;
       if (f.loc === 'here' && fid !== currentFolder) return false;
-      if (f.mem === 'no' && w.memorized) return false;
-      if (f.mem === 'yes' && !w.memorized) return false;
+      if (f.mem === 'no' && isMemo(w)) return false;
+      if (f.mem === 'yes' && !isMemo(w)) return false;
       const n = charLen(w.word);
       if (f.min && n < f.min) return false;
       if (f.max && n > f.max) return false;
@@ -1710,12 +1744,11 @@
       } catch (err) { dbError(err); }
     }
 
-    async function toggleMemo(id) {
-      if (!requireWritable()) { renderWordList(); return; }
-      const entry = words.find(w => w.id === id);
-      if (!entry) return;
-      try { await col.doc(id).update({ memorized: !entry.memorized }); }
-      catch (err) { dbError(err); }
+    function toggleMemo(id) {
+      if (memoSet.has(id)) memoSet.delete(id); else memoSet.add(id);
+      saveMemo();
+      renderWordList();
+      qRefresh();
     }
 
     async function deleteWord(id) {
@@ -2227,18 +2260,27 @@
       if (!body) return;
       body.innerHTML = '';
       updateReqBadge();
-      const TYPE_LABEL = { add: '추가', extend: '이어 추가', edit: '수정', delete: '삭제' };
+      const TYPE_LABEL = { add: '추가', extend: '이어 추가', edit: '수정', delete: '삭제', move: '이동' };
 
       requests.forEach(r => {
         const type = r.type;
         const word = String(r.word || '');
         const norm = r.category === '공수' ? word.replace(/\s*\/\s*/g, '/') : word;
         const target = (type === 'edit' || type === 'delete') ? words.find(w => w.id === r.targetId) : null;
-        const isMission = r.category === '미션' && type !== 'delete';
+        const isMission = r.category === '미션' && type !== 'delete' && type !== 'move';
         let wordCell, tags = '';
 
         if (type === 'extend') {
           wordCell = chainHtml(String(r.base || '') + ' ' + word, true);
+        } else if (type === 'move') {
+          const isF = r.kind === 'f';
+          const item = (isF ? folders : words).find(x => x.id === r.targetId);
+          const from = item ? (isF ? parentOf(item) : folderOf(item)) : null;
+          const pathTxt = id => id ? folderPath(id).map(f => escapeHtml(f.name)).join(' › ') : escapeHtml(String(r.category || '')) + ' (맨 위)';
+          wordCell = (isF ? '📁 ' : '') + (item ? (isF ? escapeHtml(item.name) : reqWordHtml(item.category, item.word, item.condition)) : escapeHtml(word)) +
+            '<div class="hint">📁 ' + pathTxt(from) + ' → ' + pathTxt(r.destId || null) + '</div>';
+          if (!item) tags = ' <span class="badge">대상 없음</span>';
+          else if (r.destId && !folders.some(f => f.id === r.destId)) tags = ' <span class="badge">폴더 없음</span>';
         } else if (type === 'edit') {
           const before = target ? reqWordHtml(target.category, target.word, target.condition)
             : '<span class="num">' + escapeHtml(String(r.oldWord || '')) + '</span>';
@@ -2318,6 +2360,17 @@
             }
           }
 
+        } else if (r.type === 'move') {
+          const isF = r.kind === 'f', dest = r.destId || null;
+          const item = (isF ? folders : words).find(x => x.id === r.targetId);
+          if (!item) showToast('대상이 이미 없어서 요청만 지웠어요.');
+          else if (dest && !folders.some(f => f.id === dest && f.category === item.category)) showToast('대상 폴더가 이미 없어서 요청만 지웠어요.');
+          else if (isF && dest && descendantIds(item.id).includes(dest)) showToast('폴더를 자기 안으로는 옮길 수 없어서 요청만 지웠어요.');
+          else {
+            if (isF) await folderCol.doc(item.id).update({ parentId: dest });
+            else await col.doc(item.id).update({ folderId: dest || firebase.firestore.FieldValue.delete() });
+            showToast('이동을 승인했어요.');
+          }
         } else {
           if (words.some(w => w.category === r.category && w.word === word)) {
             showToast('이미 있는 단어라 요청만 지웠어요.');
@@ -2574,7 +2627,9 @@
         (tm === 'none' ? '<p class="hint">시간 압박 없이 천천히 외워요.</p>' : '') + '</div>';
       const D = '<div class="qcard"><h3><i style="font-style:normal">💡</i>힌트 · 표시</h3>' +
         qRow('처음부터 보여줄 글자', qSeg('hint0', [[0, '없음'], [1, '1글자'], [2, '2글자'], [3, '3글자']]), '문제에 “[ ]로 시작하는 단어”로 표시') +
-        qChk('showLen', '글자 수 칸 보이기') + qChk('showCho', '초성 보이기', '칸 안에 ㄱㅅㅌ 표시 · 영문/숫자는 첫 글자만') + qChk('hintBtn', '힌트 버튼 허용', 'Tab 키') +
+        qChk('showLen', '글자 수 보이기', '끄면 빈 칸 개수·“N글자” 표시가 전부 사라져요') +
+        (QS.showLen ? qChk('showCho', '초성 보이기', '칸 안에 ㄱㅅㅌ 표시 · 영문/숫자는 첫 글자만')
+          : '<label class="check qchk" style="opacity:.45"><input type="checkbox" disabled>초성 보이기<small>&nbsp;글자 수를 숨기면 쓸 수 없어요</small></label>') + qChk('hintBtn', '힌트 버튼 허용', 'Tab 키') +
         (QS.hintBtn ? qRow('힌트 감점', qSeg('hintCost', [[0, '없음'], [15, '15%'], [30, '30%'], [50, '50%']])) : '') + '</div>';
       const E = '<div class="qcard full" style="grid-column:1/-1"><h3><i style="font-style:normal">⚙️</i>규칙 · 연출</h3><div class="qgrid">' +
         '<div>' + qRow('하트(목숨)', qSeg('lives', [[0, '무제한'], [3, '♥ 3'], [5, '♥ 5'], [10, '♥ 10']])) + qRow('문제당 기회', qSeg('tries', [[1, '1번'], [2, '2번'], [3, '3번'], [0, '무제한']]), '틀려도 다시 입력 가능') + '</div>' +
@@ -2595,8 +2650,8 @@
       if (QS.pick) { const s = new Set(QS.picked); return words.filter(w => s.has(w.id)); }
       return words.filter(w => {
         if (!QS.cats.includes(w.category)) return false;
-        if (QS.mem === 'no' && w.memorized) return false;
-        if (QS.mem === 'yes' && !w.memorized) return false;
+        if (QS.mem === 'no' && isMemo(w)) return false;
+        if (QS.mem === 'yes' && !isMemo(w)) return false;
         const n = charLen(w.word);
         if (QS.minLen && n < QS.minLen) return false;
         if (QS.maxLen && n > QS.maxLen) return false;
@@ -2620,8 +2675,8 @@
     function qPickMatch(w) {
       const f = QF, k = x => cleanText(x).trim().toLowerCase();
       if (f.cats.length && !f.cats.includes(w.category)) return false;
-      if (f.mem === 'no' && w.memorized) return false;
-      if (f.mem === 'yes' && !w.memorized) return false;
+      if (f.mem === 'no' && isMemo(w)) return false;
+      if (f.mem === 'yes' && !isMemo(w)) return false;
       const n = charLen(w.word);
       if (f.min && n < f.min) return false;
       if (f.max && n > f.max) return false;
@@ -2669,22 +2724,24 @@
       if (m === 'all') vis.forEach(w => s.add(w.id));
       else if (m === 'none') vis.forEach(w => s.delete(w.id));
       else if (m === 'clear') s.clear();
-      else vis.filter(w => !w.memorized).forEach(w => s.add(w.id));
+      else vis.filter(w => !isMemo(w)).forEach(w => s.add(w.id));
       QS.picked = [...s]; qSave(QK, QS); qPickRender(); qSum();
     }
 
     // ---------- 시작 / 문제 만들기 ----------
-    function qStart(custom) {
+    function qStart(custom, honor) {
       const pool = custom || qPool();
+      if (honor) qSrc = custom; else if (!cu) qSrc = null;
+      const cu = custom && !honor;   // 틀린 단어 재도전처럼 '그대로' 내는 경우만 순서·문제 수 설정을 무시
       if (!pool.length) { showToast('출제할 단어가 없어요.'); return; }
       const stat = qLoad(QSTAT, {});
       let a = pool.slice();
-      if (!custom && QS.order === 'input') { /* 입력순 그대로 */ }
-      else if (QS.order === 'long' && !custom) a = qShuf(a).sort((x, y) => charLen(y.word) - charLen(x.word));
-      else if (QS.order === 'short' && !custom) a = qShuf(a).sort((x, y) => charLen(x.word) - charLen(y.word));
-      else if (QS.order === 'weak' && !custom) { const sc = w => { const s = stat[w.id] || { o: 0, n: 0 }; return s.n - s.o + Math.random() * .9; }; a.sort((x, y) => sc(y) - sc(x)); }
+      if (!cu && QS.order === 'input') { /* 입력순 그대로 */ }
+      else if (QS.order === 'long' && !cu) a = qShuf(a).sort((x, y) => charLen(y.word) - charLen(x.word));
+      else if (QS.order === 'short' && !cu) a = qShuf(a).sort((x, y) => charLen(x.word) - charLen(y.word));
+      else if (QS.order === 'weak' && !cu) { const sc = w => { const s = stat[w.id] || { o: 0, n: 0 }; return s.n - s.o + Math.random() * .9; }; a.sort((x, y) => sc(y) - sc(x)); }
       else qShuf(a);
-      if (QS.count && !custom) a = a.slice(0, QS.count);
+      if (QS.count && !cu) a = a.slice(0, QS.count);
       Q = { run: true, phase: '', list: a, i: -1, res: [], score: 0, combo: 0, maxCombo: 0, ok: 0, lives: QS.lives, t0: Date.now(), last: Date.now(),
         reqd: new Set(), stat, totalLeft: QS.totalSec * 1000, totalMax: QS.totalSec * 1000, over: '' };
       qShow('play');
@@ -2747,19 +2804,19 @@
     function qSlotsRender() {
       const q = Q.q, s = [...q.ans[0]], n = s.length, k = q.base + q.hints;
       const rev = i => q.dir === 'f' ? i < k : i >= n - k;
-      const chos = QS.showCho ? qChoList(s) : null;
+      const cho = QS.showLen && QS.showCho, chos = cho ? qChoList(s) : null;
       let h;
-      if (!QS.showLen && !QS.showCho) {
+      if (!QS.showLen) {   // 글자 수 숨김: 드러난 글자만 보여주고 나머지는 '…' 하나로
         const r = s.filter((_, i) => rev(i)).map(c => '<span class="slot rev">' + escapeHtml(c) + '</span>').join(''), dots = '<span class="slot more">…</span>';
         h = q.dir === 'f' ? r + dots : dots + r;
       } else {
-        h = s.map((c, i) => rev(i) ? '<span class="slot rev">' + escapeHtml(c) + '</span>' : '<span class="slot' + (QS.showCho ? ' cho' : '') + '">' + (QS.showCho ? escapeHtml(chos[i]) : '') + '</span>').join('');
+        h = s.map((c, i) => rev(i) ? '<span class="slot rev">' + escapeHtml(c) + '</span>' : '<span class="slot' + (cho ? ' cho' : '') + '">' + (cho ? escapeHtml(chos[i]) : '') + '</span>').join('');
       }
       qe('qSlots').innerHTML = h;
       const lens = [...new Set(q.ans.map(a => [...a].length))].join(' / ');
-      qe('qInfo').textContent = QS.showLen || QS.showCho ? lens + '글자' + (q.hints ? ' · 힌트 ' + q.hints + '회' : '') : (q.hints ? '힌트 ' + q.hints + '회' : '');
+      qe('qInfo').textContent = QS.showLen ? lens + '글자' + (q.hints ? ' · 힌트 ' + q.hints + '회' : '') : (q.hints ? '힌트 ' + q.hints + '회' : '');
       const hb = qe('qHintBtn'); hb.textContent = '💡 힌트' + (QS.hintCost ? ' (−' + QS.hintCost + '%)' : '');
-      hb.disabled = k >= n - 1;
+      hb.disabled = QS.showLen && k >= n - 1;   // 글자 수를 숨길 땐 버튼 상태로 길이가 새지 않게 해요
     }
 
     // ---------- 입력 / 판정 ----------
@@ -2773,7 +2830,7 @@
     function qHint() {
       if (Q.phase !== 'q' || !QS.hintBtn) return;
       const q = Q.q, n = [...q.ans[0]].length;
-      if (q.base + q.hints >= n - 1) return;
+      if (q.base + q.hints >= n - 1) { if (!QS.showLen) qe('qMsg').textContent = '더 줄 힌트가 없어요'; return; }
       q.hints++; qSlotsRender(); qe('qInput').focus();
     }
     function qPass() { if (Q.phase === 'q') qOutcome(false, '', 'pass'); }
@@ -2881,21 +2938,18 @@
       qe('qResult').innerHTML =
         '<div class="rhead"><div class="rgrade g-' + g + '">' + g + '</div><div><h2>' + msg + '</h2><p class="sub">' + (rec ? '🏆 새 최고 점수!' : '최고 점수 ' + best.toLocaleString()) + '</p></div></div>' +
         '<div class="rstats"><div><small>점수</small><b>' + Q.score.toLocaleString() + '</b></div><div><small>정답률</small><b>' + acc + '%</b></div><div><small>맞춘 문제</small><b>' + Q.ok + '/' + n + '</b></div><div><small>최대 콤보</small><b>' + Q.maxCombo + '</b></div><div><small>걸린 시간</small><b>' + qFmt(el) + '</b></div></div>' +
-        '<div class="qbtns" style="justify-content:flex-start;margin:0 0 18px"><button class="btn btn-light" onclick="qStart()">↻ 다시 하기</button>' +
+        '<div class="qbtns" style="justify-content:flex-start;margin:0 0 18px"><button class="btn btn-light" onclick="qStart(qSrc, !!qSrc)">↻ 다시 하기</button>' +
         (wrong.length ? '<button class="btn" onclick="qStart(QR.wrong)">틀린 ' + wrong.length + '개만 다시</button>' : '') +
         (QR.okIds.length ? '<button class="btn btn-ok" onclick="qMemo()">맞춘 단어 암기 체크</button>' : '') +
         '<button class="btn" onclick="qShow(\'setup\');renderSetup()">⚙ 설정으로</button></div>' +
         (wrong.length ? '<h2 style="font-size:15px;margin-bottom:8px">다시 볼 단어 ' + wrong.length + '개</h2><div class="table-wrap">' + wrong.map(r => '<div class="rrow"><span class="chip ' + getCategoryColorClass(r.w.category) + '">' + escapeHtml(r.w.category) + '</span>' + qFull(r.w).replace('qfull', 'qfull" style="font-size:16px') + (r.given ? '<span class="mine">내 답 ' + escapeHtml(r.given) + '</span>' : '') + '</div>').join('') + '</div>' : '<p class="empty">전부 맞혔어요! 👏</p>');
       qShow('result');
     }
-    async function qMemo() {
-      if (!requireWritable()) return;
-      const ids = QR.okIds.filter(id => { const w = words.find(x => x.id === id); return w && !w.memorized; });
+    function qMemo() {
+      const ids = QR.okIds.filter(id => !memoSet.has(id));
       if (!ids.length) { showToast('새로 체크할 단어가 없어요.'); return; }
-      try {
-        const b = db.batch(); ids.forEach(id => b.update(col.doc(id), { memorized: true })); await b.commit();
-        showToast(ids.length + '개를 암기 완료로 표시했어요!');
-      } catch (err) { dbError(err); }
+      ids.forEach(id => memoSet.add(id)); saveMemo(); renderWordList();
+      showToast(ids.length + '개를 암기 완료로 표시했어요!');
     }
 
     init();
