@@ -440,6 +440,7 @@
               <div class="qnote" style="background:var(--surface-2);color:var(--muted)">아래 조건으로 좁힌 뒤 <b>‘보이는 것 모두 선택’</b>을 누르면 한 번에 고를 수 있어요. 조건을 바꿔가며 여러 번 눌러서 합칠 수도 있어요.</div>
               <div id="qPickFilter" class="pkf">
                 <div class="qrow"><span class="qlab">카테고리<small>비우면 전체</small></span><div class="seg" id="qfCats"></div></div>
+                <div class="qrow"><span class="qlab">폴더<small>카테고리를 하나만 고르면 폴더 안으로 들어갈 수 있어요</small></span><div class="seg" id="qfFolder"></div></div>
                 <div class="qrow"><span class="qlab">시작 · 끝 글자<small>“○로 시작” · “○로 끝남”</small></span><div class="seg">
                   <input id="qfStart" class="field" style="width:120px" autocomplete="off" placeholder="시작 글자" oninput="qFSet('start',this.value)">
                   <input id="qfEnd" class="field" style="width:120px" autocomplete="off" placeholder="끝 글자" oninput="qFSet('end',this.value)"></div></div>
@@ -1530,7 +1531,7 @@
     function openFolder(id) { currentFolder = id || null; rowAnim = true; renderWordList(); }
     // 지금 보고 있는 폴더(하위 폴더 포함)의 단어들. 맨 위라면 그 카테고리 전체
     function hereWords() {
-      if (currentCat === 'all') return [];
+      if (currentCat === 'all') return words.slice();
       const set = currentFolder ? new Set(descendantIds(currentFolder)) : null;
       return words.filter(w => w.category === currentCat && (!set || set.has(folderOf(w))));
     }
@@ -1549,15 +1550,14 @@
 
     function renderFolderBar() {
       const bar = document.getElementById('folderBar');
-      bar.classList.toggle('hidden', currentCat === 'all');
-      if (currentCat === 'all') return;
-      const path = folderPath(currentFolder);
-      let h = '<button class="crumb' + (currentFolder ? '' : ' is-active') + '" onclick="openFolder(null)">📁 ' + escapeHtml(currentCat) + '</button>';
+      bar.classList.remove('hidden');
+      const path = currentCat === 'all' ? [] : folderPath(currentFolder);
+      let h = currentCat === 'all' ? '' : '<button class="crumb' + (currentFolder ? '' : ' is-active') + '" onclick="openFolder(null)">📁 ' + escapeHtml(currentCat) + '</button>';
       path.forEach((f, i) => {
         h += '<span class="crumb-sep">›</span><button class="crumb' + (i === path.length - 1 ? ' is-active' : '') + '" onclick="openFolder(' + jsAttr(f.id) + ')">' + escapeHtml(f.name) + '</button>';
       });
-      h += '<span class="crumb-tools"><button class="btn btn-ok" onclick="quizHere()" title="지금 보고 있는 폴더(하위 폴더 포함)의 단어로 바로 퀴즈를 시작해요">🧠 ' + (currentFolder ? '이 폴더' : escapeHtml(currentCat)) + ' 퀴즈 (' + hereWords().length + ')</button>' +
-        (isAdmin ? '<button class="btn" onclick="openBulk()">☑ 대량 이동</button><button class="btn btn-light" onclick="newFolder()">＋ 새 폴더</button>' : '') + '</span>';
+      h += '<span class="crumb-tools"><button class="btn btn-ok" onclick="quizHere()" title="지금 보고 있는 폴더(하위 폴더 포함)의 단어로 바로 퀴즈를 시작해요">🧠 ' + (currentCat === 'all' ? '전체' : currentFolder ? '이 폴더' : escapeHtml(currentCat)) + ' 퀴즈 (' + hereWords().length + ')</button>' +
+        (isAdmin && currentCat !== 'all' ? '<button class="btn" onclick="openBulk()">☑ 대량 이동</button><button class="btn btn-light" onclick="newFolder()">＋ 새 폴더</button>' : '') + '</span>';
       bar.innerHTML = h;
     }
 
@@ -2666,7 +2666,8 @@
       qe('qStartBtn').disabled = !n;
     }
     // ---- 직접 고르기: 조건 필터 ----
-    const QFDEF = { cats: [], start: '', end: '', script: 'all', mem: 'all', min: 0, max: 0 };
+    const QFDEF = { cats: [], fid: null, start: '', end: '', script: 'all', mem: 'all', min: 0, max: 0 };
+    let QFset = null;   // 폴더 탐색 중이면 그 폴더(+하위 폴더) id 모음
     let QF = Object.assign({}, QFDEF);
     const HANGUL_RE = /[가-힣ㄱ-ㅎㅏ-ㅣ]/, LATIN_RE = /[A-Za-z]/;
     // 공수는 첫 단계의 선택지들이 '시작', 마지막 단계의 선택지들이 '끝'이에요.
@@ -2675,6 +2676,7 @@
     function qPickMatch(w) {
       const f = QF, k = x => cleanText(x).trim().toLowerCase();
       if (f.cats.length && !f.cats.includes(w.category)) return false;
+      if (QFset && !QFset.has(folderOf(w))) return false;
       if (f.mem === 'no' && isMemo(w)) return false;
       if (f.mem === 'yes' && !isMemo(w)) return false;
       const n = charLen(w.word);
@@ -2693,7 +2695,18 @@
       return true;
     }
     function qFSet(k, v) { QF[k] = v; qPickRender(); }
-    function qFCat(c) { const s = new Set(QF.cats); s.has(c) ? s.delete(c) : s.add(c); QF.cats = [...s]; qPickRender(); }
+    function qFCat(c) { const s = new Set(QF.cats); s.has(c) ? s.delete(c) : s.add(c); QF.cats = [...s]; QF.fid = null; qPickRender(); }
+    function qFFolder(id) { QF.fid = id || null; qPickRender(); }
+    // 지금 보고 있는 폴더(하위 폴더 포함) — 폴더 안이 아니면 고른 카테고리 전체 — 의 단어를 한 번에 선택/해제 (다른 필터는 무시)
+    function qFolderCat() { const f = QF.fid && folders.find(x => x.id === QF.fid); return f ? f.category : (QF.cats.length === 1 ? QF.cats[0] : null); }
+    function qFolderSel(on) {
+      const cat = qFolderCat(); if (!cat) return;
+      const set = QF.fid ? new Set(descendantIds(QF.fid)) : null, s = new Set(QS.picked);
+      const ws = words.filter(w => w.category === cat && (!set || set.has(folderOf(w))));
+      ws.forEach(w => on ? s.add(w.id) : s.delete(w.id));
+      QS.picked = [...s]; qSave(QK, QS); qPickRender(); qSum();
+      showToast(ws.length + '개를 ' + (on ? '선택' : '해제') + '했어요.');
+    }
     function qFReset() {
       QF = Object.assign({}, QFDEF); qe('qPickSearch').value = '';
       qe('qfStart').value = ''; qe('qfEnd').value = ''; qe('qfMin').value = ''; qe('qfMax').value = '';
@@ -2704,8 +2717,23 @@
       qe('qfCats').innerHTML = ['장문', '공수', '미션', '예능'].map(c => '<button type="button" class="opt cat cat-' + c + (QF.cats.includes(c) ? ' on' : '') + '" onclick="qFCat(\'' + c + '\')">' + c + '</button>').join('');
       seg('qfScript', 'script', [['all', '전체'], ['ko', '한글만'], ['en', '영단어만'], ['hasEn', '영문 포함'], ['hasKo', '한글 포함']]);
       seg('qfMem', 'mem', [['all', '전체'], ['no', '미암기'], ['yes', '암기함']]);
+      // 폴더 탐색: 카테고리를 하나만 고르면(또는 폴더 안에 들어가 있으면) 활성화
+      if (QF.fid && !folders.some(f => f.id === QF.fid)) QF.fid = null;
+      const cat = qFolderCat(), box = qe('qfFolder');
+      if (!cat) { box.innerHTML = '<span class="hint" style="margin:0">위에서 카테고리를 하나만 고르세요.</span>'; return; }
+      const path = QF.fid ? folderPath(QF.fid) : [];
+      let h = '<button type="button" class="opt' + (QF.fid ? '' : ' on') + '" onclick="qFFolder(null)">📁 ' + escapeHtml(cat) + ' 전체</button>';
+      path.forEach((f, i) => { h += '<span class="crumb-sep">›</span><button type="button" class="opt' + (i === path.length - 1 ? ' on' : '') + '" onclick="qFFolder(' + jsAttr(f.id) + ')">' + escapeHtml(f.name) + '</button>'; });
+      const kids = childFolders(QF.fid, cat);
+      if (kids.length) {
+        h += '<span class="crumb-sep">｜ 안으로</span>' + kids.map(f => '<button type="button" class="opt" onclick="qFFolder(' + jsAttr(f.id) + ')">📁 ' + escapeHtml(f.name) + '<small>' + countWords(f.id) + '</small></button>').join('');
+      }
+      h += '<span style="flex-basis:100%"></span><button type="button" class="btn btn-sm" onclick="qFolderSel(true)">📁 ' + (QF.fid ? '이 폴더' : escapeHtml(cat)) + ' 단어 전부 선택</button>' +
+        '<button type="button" class="btn btn-sm" onclick="qFolderSel(false)">전부 해제</button>';
+      box.innerHTML = h;
     }
     function qPickVis() {
+      QFset = QF.fid && folders.some(f => f.id === QF.fid) ? new Set(descendantIds(QF.fid)) : null;
       const s = qe('qPickSearch').value.trim().toLowerCase();
       return words.filter(w => qPickMatch(w) && (!s || w.word.toLowerCase().includes(s) || (w.condition || '').includes(s)));
     }
